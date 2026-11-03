@@ -1,0 +1,12 @@
+# The workspace's rules, plus what a library owes its users.
+analyzer:
+  exclude:
+    - build/**
+include: ../../analysis_options.yaml
+
+linter:
+  rules:
+    # Every public name is documented: the docs are part of the API.
+    public_member_api_docs: true
+    # A public API states its types, so a change to one is a visible change.
+    type_annotate_public_apis: true

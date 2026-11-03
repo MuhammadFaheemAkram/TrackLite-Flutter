@@ -1,0 +1,25 @@
+# The workspace. Each package's build output and tool caches stay out of
+# version control; generated Dart code (*.g.dart, *.freezed.dart, …) is
+# committed on purpose (00-CONVENTIONS.md §2).
+
+# Dart / Flutter
+.dart_tool/
+build/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+**/doc/api/
+coverage/
+pubspec_overrides.yaml
+
+# IDEs and OS files
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+*.swp
+.history
+
+# FVM Version Cache
+.fvm/

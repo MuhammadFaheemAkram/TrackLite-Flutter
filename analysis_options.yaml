@@ -1,0 +1,50 @@
+# One set of rules for the whole workspace: the analyzer uses the nearest
+# analysis_options.yaml up the folder tree. Flutter's recommended lints plus
+# strict type checks and a few extra rules (see 00-CONVENTIONS.md §2). The SDK
+# adds its own on top (packages/tracklite/analysis_options.yaml).
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  # Generated files are *not* excluded: the analyzer must still see their
+  # compile errors. Their lints are silenced by `ignore_for_file: type=lint`
+  # headers, which the generators add (source_gen via build.yaml).
+  exclude:
+    - "**/build/**"
+    - sample_app/android/**
+    - sample_app/ios/**
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    # The SDK's boundary, as an error rather than a hint: a host app may
+    # import only what `package:tracklite/tracklite.dart` exports. The
+    # sample app can't reach into the SDK's `lib/src/`, any more than a real
+    # host could rely on it.
+    implementation_imports: error
+    # In a workspace every package shares one resolution, so without this
+    # rule the sample could import a package only the SDK declares, and its
+    # pubspec would lie.
+    depend_on_referenced_packages: error
+
+linter:
+  rules:
+    always_declare_return_types: true
+    always_use_package_imports: true
+    avoid_dynamic_calls: true
+    avoid_redundant_argument_values: true
+    cancel_subscriptions: true
+    close_sinks: true
+    depend_on_referenced_packages: true
+    directives_ordering: true
+    implementation_imports: true
+    prefer_const_constructors: true
+    prefer_const_constructors_in_immutables: true
+    prefer_const_declarations: true
+    prefer_const_literals_to_create_immutables: true
+    prefer_final_in_for_each: true
+    prefer_final_locals: true
+    prefer_single_quotes: true
+    sort_child_properties_last: true
+    unawaited_futures: true
+    use_super_parameters: true
