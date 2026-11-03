@@ -215,6 +215,17 @@ void main() {
       expect(manual.map((row) => row.id), ['waiting']);
     });
 
+    test('the earliest retry time, whatever the order of the rows', () async {
+      final later = testNow.add(const Duration(minutes: 8));
+      final sooner = testNow.add(const Duration(minutes: 2));
+      await pending(['late'], retryAt: later);
+      await pending(['soon'], retryAt: sooner);
+      await pending(['now']);
+
+      expect(await db.eventDao.earliestRetryAt(), sooner);
+      expect(await db.eventDao.dueCount(testNow), 1);
+    });
+
     test('an expired claim goes back to pending; a recent one stays', () async {
       await pending(['old', 'recent']);
       await db.eventDao.claim(

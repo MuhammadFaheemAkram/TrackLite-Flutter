@@ -39,6 +39,16 @@ void main() {
           },
         ),
         (
+          'Dashboard, offline (simulated)',
+          '/dashboard',
+          (tester) async {
+            await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('Device offline'));
+            await tester.pumpAndSettle();
+          },
+        ),
+        (
           'Dashboard, with events',
           '/shop/grinder',
           (tester) async {

@@ -16,7 +16,8 @@ T _$identity<T>(T value) => value;
 mixin _$DashboardState {
 
 /// `null` until the first snapshot arrives.
- QueueStats? get queue;/// A flush is running (the button waits for it).
+ QueueStats? get queue;/// The device's network and the demo switch; `null` until known.
+ NetworkStatus? get network;/// A flush is running (the button waits for it).
  bool get flushing;/// The last flush's outcome, shown once; [flushSerial] makes a repeat
 /// show again.
  FlushOutcome? get lastFlush; int get flushSerial;
@@ -31,20 +32,20 @@ $DashboardStateCopyWith<DashboardState> get copyWith => _$DashboardStateCopyWith
 @override
 bool operator ==(Object other) {
   final _this = this as DashboardState;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DashboardState&&(identical(other.queue, _this.queue) || other.queue == _this.queue)&&(identical(other.flushing, _this.flushing) || other.flushing == _this.flushing)&&(identical(other.lastFlush, _this.lastFlush) || other.lastFlush == _this.lastFlush)&&(identical(other.flushSerial, _this.flushSerial) || other.flushSerial == _this.flushSerial));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DashboardState&&(identical(other.queue, _this.queue) || other.queue == _this.queue)&&(identical(other.network, _this.network) || other.network == _this.network)&&(identical(other.flushing, _this.flushing) || other.flushing == _this.flushing)&&(identical(other.lastFlush, _this.lastFlush) || other.lastFlush == _this.lastFlush)&&(identical(other.flushSerial, _this.flushSerial) || other.flushSerial == _this.flushSerial));
 }
 
 
 @override
 int get hashCode {
   final _this = this as DashboardState;
-  return Object.hash(runtimeType,_this.queue,_this.flushing,_this.lastFlush,_this.flushSerial);
+  return Object.hash(runtimeType,_this.queue,_this.network,_this.flushing,_this.lastFlush,_this.flushSerial);
 }
 
 @override
 String toString() {
   final _this = this as DashboardState;
-  return 'DashboardState(queue: ${_this.queue}, flushing: ${_this.flushing}, lastFlush: ${_this.lastFlush}, flushSerial: ${_this.flushSerial})';
+  return 'DashboardState(queue: ${_this.queue}, network: ${_this.network}, flushing: ${_this.flushing}, lastFlush: ${_this.lastFlush}, flushSerial: ${_this.flushSerial})';
 }
 
 
@@ -55,11 +56,11 @@ abstract mixin class $DashboardStateCopyWith<$Res>  {
   factory $DashboardStateCopyWith(DashboardState value, $Res Function(DashboardState) _then) = _$DashboardStateCopyWithImpl;
 @useResult
 $Res call({
- QueueStats? queue, bool flushing, FlushOutcome? lastFlush, int flushSerial
+ QueueStats? queue, NetworkStatus? network, bool flushing, FlushOutcome? lastFlush, int flushSerial
 });
 
 
-$QueueStatsCopyWith<$Res>? get queue;$FlushOutcomeCopyWith<$Res>? get lastFlush;
+$QueueStatsCopyWith<$Res>? get queue;$NetworkStatusCopyWith<$Res>? get network;$FlushOutcomeCopyWith<$Res>? get lastFlush;
 
 }
 /// @nodoc
@@ -72,10 +73,11 @@ class _$DashboardStateCopyWithImpl<$Res>
 
 /// Create a copy of DashboardState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? queue = freezed,Object? flushing = null,Object? lastFlush = freezed,Object? flushSerial = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? queue = freezed,Object? network = freezed,Object? flushing = null,Object? lastFlush = freezed,Object? flushSerial = null,}) {
   return _then(DashboardState(
 queue: freezed == queue ? _self.queue : queue // ignore: cast_nullable_to_non_nullable
-as QueueStats?,flushing: null == flushing ? _self.flushing : flushing // ignore: cast_nullable_to_non_nullable
+as QueueStats?,network: freezed == network ? _self.network : network // ignore: cast_nullable_to_non_nullable
+as NetworkStatus?,flushing: null == flushing ? _self.flushing : flushing // ignore: cast_nullable_to_non_nullable
 as bool,lastFlush: freezed == lastFlush ? _self.lastFlush : lastFlush // ignore: cast_nullable_to_non_nullable
 as FlushOutcome?,flushSerial: null == flushSerial ? _self.flushSerial : flushSerial // ignore: cast_nullable_to_non_nullable
 as int,
@@ -92,6 +94,18 @@ $QueueStatsCopyWith<$Res>? get queue {
 
   return $QueueStatsCopyWith<$Res>(_self.queue!, (value) {
     return _then(_self.copyWith(queue: value));
+  });
+}/// Create a copy of DashboardState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$NetworkStatusCopyWith<$Res>? get network {
+    if (_self.network == null) {
+    return null;
+  }
+
+  return $NetworkStatusCopyWith<$Res>(_self.network!, (value) {
+    return _then(_self.copyWith(network: value));
   });
 }/// Create a copy of DashboardState
 /// with the given fields replaced by the non-null parameter values.
@@ -187,10 +201,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( QueueStats? queue,  bool flushing,  FlushOutcome? lastFlush,  int flushSerial)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( QueueStats? queue,  NetworkStatus? network,  bool flushing,  FlushOutcome? lastFlush,  int flushSerial)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DashboardState() when $default != null:
-return $default(_that.queue,_that.flushing,_that.lastFlush,_that.flushSerial);case _:
+return $default(_that.queue,_that.network,_that.flushing,_that.lastFlush,_that.flushSerial);case _:
   return orElse();
 
 }
@@ -208,10 +222,10 @@ return $default(_that.queue,_that.flushing,_that.lastFlush,_that.flushSerial);ca
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( QueueStats? queue,  bool flushing,  FlushOutcome? lastFlush,  int flushSerial)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( QueueStats? queue,  NetworkStatus? network,  bool flushing,  FlushOutcome? lastFlush,  int flushSerial)  $default,) {final _that = this;
 switch (_that) {
 case _DashboardState():
-return $default(_that.queue,_that.flushing,_that.lastFlush,_that.flushSerial);case _:
+return $default(_that.queue,_that.network,_that.flushing,_that.lastFlush,_that.flushSerial);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -228,10 +242,10 @@ return $default(_that.queue,_that.flushing,_that.lastFlush,_that.flushSerial);ca
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( QueueStats? queue,  bool flushing,  FlushOutcome? lastFlush,  int flushSerial)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( QueueStats? queue,  NetworkStatus? network,  bool flushing,  FlushOutcome? lastFlush,  int flushSerial)?  $default,) {final _that = this;
 switch (_that) {
 case _DashboardState() when $default != null:
-return $default(_that.queue,_that.flushing,_that.lastFlush,_that.flushSerial);case _:
+return $default(_that.queue,_that.network,_that.flushing,_that.lastFlush,_that.flushSerial);case _:
   return null;
 
 }
@@ -243,11 +257,13 @@ return $default(_that.queue,_that.flushing,_that.lastFlush,_that.flushSerial);ca
 
 
 class _DashboardState implements DashboardState {
-  const _DashboardState({this.queue, this.flushing = false, this.lastFlush, this.flushSerial = 0});
+  const _DashboardState({this.queue, this.network, this.flushing = false, this.lastFlush, this.flushSerial = 0});
   
 
 /// `null` until the first snapshot arrives.
 @override final  QueueStats? queue;
+/// The device's network and the demo switch; `null` until known.
+@override final  NetworkStatus? network;
 /// A flush is running (the button waits for it).
 @override@JsonKey() final  bool flushing;
 /// The last flush's outcome, shown once; [flushSerial] makes a repeat
@@ -265,18 +281,18 @@ _$DashboardStateCopyWith<_DashboardState> get copyWith => __$DashboardStateCopyW
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DashboardState&&(identical(other.queue, queue) || other.queue == queue)&&(identical(other.flushing, flushing) || other.flushing == flushing)&&(identical(other.lastFlush, lastFlush) || other.lastFlush == lastFlush)&&(identical(other.flushSerial, flushSerial) || other.flushSerial == flushSerial));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DashboardState&&(identical(other.queue, queue) || other.queue == queue)&&(identical(other.network, network) || other.network == network)&&(identical(other.flushing, flushing) || other.flushing == flushing)&&(identical(other.lastFlush, lastFlush) || other.lastFlush == lastFlush)&&(identical(other.flushSerial, flushSerial) || other.flushSerial == flushSerial));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,queue,flushing,lastFlush,flushSerial);
+    return Object.hash(runtimeType,queue,network,flushing,lastFlush,flushSerial);
 }
 
 @override
 String toString() {
-    return 'DashboardState(queue: $queue, flushing: $flushing, lastFlush: $lastFlush, flushSerial: $flushSerial)';
+    return 'DashboardState(queue: $queue, network: $network, flushing: $flushing, lastFlush: $lastFlush, flushSerial: $flushSerial)';
 }
 
 
@@ -287,11 +303,11 @@ abstract mixin class _$DashboardStateCopyWith<$Res> implements $DashboardStateCo
   factory _$DashboardStateCopyWith(_DashboardState value, $Res Function(_DashboardState) _then) = __$DashboardStateCopyWithImpl;
 @override @useResult
 $Res call({
- QueueStats? queue, bool flushing, FlushOutcome? lastFlush, int flushSerial
+ QueueStats? queue, NetworkStatus? network, bool flushing, FlushOutcome? lastFlush, int flushSerial
 });
 
 
-@override $QueueStatsCopyWith<$Res>? get queue;@override $FlushOutcomeCopyWith<$Res>? get lastFlush;
+@override $QueueStatsCopyWith<$Res>? get queue;@override $NetworkStatusCopyWith<$Res>? get network;@override $FlushOutcomeCopyWith<$Res>? get lastFlush;
 
 }
 /// @nodoc
@@ -304,10 +320,11 @@ class __$DashboardStateCopyWithImpl<$Res>
 
 /// Create a copy of DashboardState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? queue = freezed,Object? flushing = null,Object? lastFlush = freezed,Object? flushSerial = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? queue = freezed,Object? network = freezed,Object? flushing = null,Object? lastFlush = freezed,Object? flushSerial = null,}) {
   return _then(_DashboardState(
 queue: freezed == queue ? _self.queue : queue // ignore: cast_nullable_to_non_nullable
-as QueueStats?,flushing: null == flushing ? _self.flushing : flushing // ignore: cast_nullable_to_non_nullable
+as QueueStats?,network: freezed == network ? _self.network : network // ignore: cast_nullable_to_non_nullable
+as NetworkStatus?,flushing: null == flushing ? _self.flushing : flushing // ignore: cast_nullable_to_non_nullable
 as bool,lastFlush: freezed == lastFlush ? _self.lastFlush : lastFlush // ignore: cast_nullable_to_non_nullable
 as FlushOutcome?,flushSerial: null == flushSerial ? _self.flushSerial : flushSerial // ignore: cast_nullable_to_non_nullable
 as int,
@@ -325,6 +342,18 @@ $QueueStatsCopyWith<$Res>? get queue {
 
   return $QueueStatsCopyWith<$Res>(_self.queue!, (value) {
     return _then(_self.copyWith(queue: value));
+  });
+}/// Create a copy of DashboardState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$NetworkStatusCopyWith<$Res>? get network {
+    if (_self.network == null) {
+    return null;
+  }
+
+  return $NetworkStatusCopyWith<$Res>(_self.network!, (value) {
+    return _then(_self.copyWith(network: value));
   });
 }/// Create a copy of DashboardState
 /// with the given fields replaced by the non-null parameter values.

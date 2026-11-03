@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:tracklite/testing.dart';
 import 'package:tracklite/tracklite.dart';
 import 'package:tracklite_sample/app/tracklite_sample_app.dart';
+import 'package:tracklite_sample/data/analytics/demo_network_monitor.dart';
 import 'package:tracklite_sample/di/injection.dart';
 import 'package:tracklite_sample/domain/analytics/analytics_service.dart';
 
@@ -18,7 +19,6 @@ Future<void> pumpSample(
   AnalyticsService? analytics,
 }) async {
   await startSdk();
-  configureDependencies();
   if (analytics != null) {
     getIt
       ..unregister<AnalyticsService>()
@@ -33,14 +33,29 @@ Future<void> pumpSample(
 /// unless a test turns its knobs.
 late FakeAnalyticsServer testServer;
 
-/// Starts the real SDK as `main()` does, on a fresh in-memory database (a
-/// widget test has no file system for it), with [testServer] as its
-/// backend.
+/// The device's network in tests: online, unless a test says otherwise.
+late FakeNetworkMonitor testDevice;
+
+/// Builds the graph and starts the real SDK as `main()` does: on a fresh
+/// in-memory database (a widget test has no file system for it), with
+/// [testServer] as its backend, [testDevice] as the device's network, and no
+/// background scheduling (there is no `workmanager` in a test).
 Future<void> startSdk() {
+  configureDependencies();
+  testDevice = FakeNetworkMonitor();
+  getIt
+    ..unregister<NetworkMonitor>(instanceName: 'device')
+    ..registerSingleton<NetworkMonitor>(testDevice, instanceName: 'device');
   TrackLiteTesting.useInMemoryDatabase();
+  TrackLiteTesting.disableTimers();
   testServer = FakeAnalyticsServer(latency: Duration.zero, failureRate: 0);
   return TrackLite.initialize(
-    TrackLiteConfig(apiKey: 'demo_key', transport: testServer),
+    TrackLiteConfig(
+      apiKey: 'demo_key',
+      transport: testServer,
+      networkMonitor: getIt<DemoNetworkMonitor>(),
+      backgroundUploads: false,
+    ),
   );
 }
 

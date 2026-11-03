@@ -65,6 +65,9 @@ final class EventRecorder {
   final String Function() _newId;
   final Clock _clock;
 
+  /// Told how many events each drain stored (the scheduler's threshold).
+  void Function(int stored)? onStored;
+
   final Queue<PendingWrite> _queue = Queue();
   Completer<void>? _drained;
   bool _closed = false;
@@ -130,6 +133,8 @@ final class EventRecorder {
       _queue.clear();
       try {
         await _database.transaction(() => _apply(batch));
+        final stored = batch.whereType<InsertEvent>().length;
+        if (stored > 0) onStored?.call(stored);
       } on Object catch (error, stackTrace) {
         // A full disk or a broken file: the batch can't be stored. It is
         // logged, and the SDK carries on rather than fail the host.

@@ -4,6 +4,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tracklite_sample/domain/analytics/flush_outcome.dart';
 import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
+import 'package:tracklite_sample/domain/network/device_network.dart';
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_cubit.dart';
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_state.dart';
 
@@ -11,16 +12,20 @@ import '../../helpers/recording_analytics.dart';
 
 void main() {
   late RecordingAnalytics analytics;
+  late FakeDeviceNetwork network;
 
-  setUp(() => analytics = RecordingAnalytics());
+  setUp(() {
+    analytics = RecordingAnalytics();
+    network = FakeDeviceNetwork();
+  });
 
   test('starts with no queue yet (loading)', () {
-    expect(DashboardCubit(analytics).state, const DashboardState());
+    expect(DashboardCubit(analytics, network).state, const DashboardState());
   });
 
   blocTest<DashboardCubit, DashboardState>(
     'shows each queue snapshot as it arrives',
-    build: () => DashboardCubit(analytics),
+    build: () => DashboardCubit(analytics, network),
     act: (cubit) async {
       cubit.start();
       analytics.emit(const QueueStats(anonymousId: 'a'));
@@ -35,7 +40,7 @@ void main() {
 
   blocTest<DashboardCubit, DashboardState>(
     'start twice listens once; close stops listening',
-    build: () => DashboardCubit(analytics),
+    build: () => DashboardCubit(analytics, network),
     act: (cubit) async {
       cubit
         ..start()
@@ -52,7 +57,7 @@ void main() {
 
   blocTest<DashboardCubit, DashboardState>(
     'flush: sending, then the outcome, counted so it shows once',
-    build: () => DashboardCubit(analytics),
+    build: () => DashboardCubit(analytics, network),
     setUp: () => analytics.flushOutcome = const FlushOutcome.sent(
       events: 3,
       requests: 1,
@@ -69,7 +74,7 @@ void main() {
 
   test('a second flush while one runs is ignored', () async {
     analytics.flushGate = Completer<void>();
-    final cubit = DashboardCubit(analytics);
+    final cubit = DashboardCubit(analytics, network);
     addTearDown(cubit.close);
 
     final first = cubit.flush();
@@ -83,7 +88,7 @@ void main() {
 
   test('closed while flushing: no state after close', () async {
     analytics.flushGate = Completer<void>();
-    final cubit = DashboardCubit(analytics);
+    final cubit = DashboardCubit(analytics, network);
 
     final flushing = cubit.flush();
     await cubit.close();
@@ -91,4 +96,25 @@ void main() {
 
     await expectLater(flushing, completes);
   });
+
+  blocTest<DashboardCubit, DashboardState>(
+    'shows the network as it changes; the switch goes to the port',
+    build: () => DashboardCubit(analytics, network),
+    act: (cubit) async {
+      cubit.start();
+      network.emit(const NetworkStatus(deviceOnline: true));
+      await Future<void>.delayed(Duration.zero);
+      cubit.simulateOffline(true);
+      network.emit(
+        const NetworkStatus(deviceOnline: true, simulatingOffline: true),
+      );
+    },
+    expect: () => const [
+      DashboardState(network: NetworkStatus(deviceOnline: true)),
+      DashboardState(
+        network: NetworkStatus(deviceOnline: true, simulatingOffline: true),
+      ),
+    ],
+    verify: (_) => expect(network.switched, [true]),
+  );
 }

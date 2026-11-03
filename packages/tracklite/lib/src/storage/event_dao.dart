@@ -137,6 +137,52 @@ class EventDao extends DatabaseAccessor<TrackLiteDatabase>
     updateKind: UpdateKind.delete,
   );
 
+  /// A server failure for one claimed event: counted, then either back to
+  /// `pending` until [retryAt], or `failed` when [retryAt] is `null` (it
+  /// has used up its retries).
+  Future<void> recordServerFailure({
+    required int seq,
+    required int attempts,
+    required DateTime? retryAt,
+    required String error,
+  }) => (update(events)..where((row) => row.seq.equals(seq))).write(
+    EventsCompanion(
+      status: Value(retryAt == null ? 'failed' : 'pending'),
+      attempts: Value(attempts),
+      nextAttemptAt: Value(retryAt),
+      claimToken: const Value(null),
+      claimedAt: const Value(null),
+      lastError: Value(error),
+    ),
+  );
+
+  /// Pending events an automatic upload may send now (no retry wait left).
+  Future<int> dueCount(DateTime now) => customSelect(
+    "SELECT COUNT(*) AS n FROM events WHERE status = 'pending' "
+    'AND (next_attempt_at IS NULL '
+    'OR julianday(next_attempt_at) <= julianday(?))',
+    variables: [Variable.withDateTime(now)],
+    readsFrom: {events},
+  ).map((row) => row.read<int>('n')).getSingle();
+
+  /// The earliest time a pending event's retry wait ends, if any waits.
+  Future<DateTime?> earliestRetryAt() =>
+      (select(events)
+            ..where(
+              (row) =>
+                  row.status.equals('pending') & row.nextAttemptAt.isNotNull(),
+            )
+            ..orderBy([
+              (row) => OrderingTerm.asc(
+                FunctionCallExpression<double>('julianday', [
+                  row.nextAttemptAt,
+                ]),
+              ),
+            ])
+            ..limit(1))
+          .map((row) => row.nextAttemptAt)
+          .getSingleOrNull();
+
   /// Events that could still be uploaded now or later: pending or sending.
   Future<int> waitingCount() {
     final count = events.seq.count();

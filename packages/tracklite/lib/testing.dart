@@ -5,5 +5,7 @@
 /// change only with a new major version.
 library;
 
+export 'package:tracklite/src/connectivity/network_monitor.dart'
+    show FakeNetworkMonitor;
 export 'package:tracklite/src/testing/tracklite_testing.dart'
     show TrackLiteTesting;

@@ -1,9 +1,11 @@
 import 'package:clock/clock.dart';
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart';
+import 'package:tracklite/src/connectivity/network_monitor.dart';
 import 'package:tracklite/src/model/flush_result.dart';
 import 'package:tracklite/src/network/analytics_transport.dart';
 import 'package:tracklite/src/recording/event_recorder.dart';
+import 'package:tracklite/src/retry/retry_policy.dart';
 import 'package:tracklite/src/storage/event_mapper.dart';
 import 'package:tracklite/src/storage/meta_keys.dart';
 import 'package:tracklite/src/storage/tracklite_database.dart';
@@ -33,6 +35,17 @@ enum UploadTrigger {
 /// 4. stops at the first failure: a failing server isn't sent more;
 /// 5. logs the run.
 ///
+/// What a failure does to its batch:
+///
+/// | Error | The events | Attempts |
+/// |---|---|---|
+/// | unreachable | back to `pending`, due as before | not counted: the server never saw them |
+/// | a 5xx | `pending` until `now + retry.delayAfter(attempts)`; past `maxRetries`, `failed` | +1 |
+/// | a 401 | back to `pending`; automatic uploads pause until the next `initialize` | not counted |
+/// | a 400 | `failed` at once: the same batch would be refused again | — |
+///
+/// Offline (the monitor says so), nothing is attempted.
+///
 /// Delivery is **at least once**. If the app dies after the server stored a
 /// batch but before `sent` is written, the claim expires and the batch is
 /// sent again; the server keeps each event id once. Exactly once would need
@@ -43,8 +56,11 @@ final class UploadManager {
     required this._database,
     required this._recorder,
     required this._transport,
+    required this._monitor,
     required this.apiKey,
     required this.batchSize,
+    required this.maxRetries,
+    required this.retry,
     required this._logger,
     required this._newId,
     Clock? clock,
@@ -59,16 +75,25 @@ final class UploadManager {
   final TrackLiteDatabase _database;
   final EventRecorder _recorder;
   final AnalyticsTransport _transport;
+  final NetworkMonitor _monitor;
   final String apiKey;
   final int batchSize;
+  final int maxRetries;
+  final RetryPolicy retry;
   final TrackLiteLogger _logger;
   final String Function() _newId;
   final Clock _clock;
 
   Future<FlushResult>? _running;
+  bool _keyRejected = false;
 
   /// Whether a run is going.
   bool get isUploading => _running != null;
+
+  /// Whether the server rejected the API key: automatic uploads stop until
+  /// the next `initialize` (a new client), since every one would be
+  /// rejected the same way. An explicit `flush()` still tries.
+  bool get pausedByRejectedKey => _keyRejected;
 
   /// Runs an upload for [trigger], or joins the one already running.
   /// [ignoreBackoff] (an explicit flush) also sends events still waiting
@@ -102,6 +127,22 @@ final class UploadManager {
       );
       if (released > 0) {
         _logger.warning('$released events back to pending: their upload died');
+      }
+      if (!_monitor.isOnline) {
+        _logger.debug('${trigger.name} upload: offline, nothing attempted');
+        // An automatic trigger offline isn't worth a line in the log
+        // (the scheduler doesn't even ask while offline); a flush the developer
+        // asked for is.
+        if (trigger == UploadTrigger.manual) {
+          await _log(
+            trigger,
+            startedAt,
+            const Offline(),
+            batches: 0,
+            events: 0,
+          );
+        }
+        return const Offline();
       }
       result = await _sendBatches(
         ignoreBackoff: ignoreBackoff,
@@ -159,7 +200,7 @@ final class UploadManager {
           '(${response.accepted} new, ${response.duplicates} duplicates)',
         );
       } on TransportException catch (error) {
-        return _failed(token, error);
+        return _failed(token, claimed, error);
       } on Object catch (error, stackTrace) {
         // A transport that broke its contract (threw something else): the
         // events go back, as if the server were unreachable.
@@ -173,14 +214,25 @@ final class UploadManager {
     }
   }
 
-  Future<FlushResult> _failed(String token, TransportException error) async {
+  Future<FlushResult> _failed(
+    String token,
+    List<EventRow> claimed,
+    TransportException error,
+  ) async {
     final events = _database.eventDao;
     switch (error) {
+      case ServerFailure():
+        await _countServerFailure(claimed, error.message);
       case RequestRejected():
         // The server refused these events themselves: sending them again
         // would be refused again. They are kept, as `failed`.
         await events.markFailed(token, error.message);
-      case ServerUnreachable() || ServerFailure() || ApiKeyRejected():
+      case ApiKeyRejected():
+        _keyRejected = true;
+        await events.release(token, error.message);
+      case ServerUnreachable():
+        // The server never saw them: not their fault, so no attempt is
+        // counted. Five network blips must not kill an event.
         await events.release(token, error.message);
     }
     _logger.warning('upload failed: ${error.message}');
@@ -190,6 +242,39 @@ final class UploadManager {
       remaining: await events.waitingCount(),
     );
   }
+
+  /// One more server failure for each claimed event: each waits its own
+  /// backoff (an event retried before has waited longer), and one that has
+  /// failed more than [maxRetries] times is given up on, as `failed`.
+  Future<void> _countServerFailure(List<EventRow> claimed, String error) =>
+      _database.transaction(() async {
+        final now = _now();
+        var gaveUp = 0;
+        for (final row in claimed) {
+          final attempts = row.attempts + 1;
+          final retryAt = attempts > maxRetries
+              ? null
+              : now.add(retry.delayAfter(attempts));
+          if (retryAt == null) gaveUp++;
+          await _database.eventDao.recordServerFailure(
+            seq: row.seq,
+            attempts: attempts,
+            retryAt: retryAt,
+            error: error,
+          );
+        }
+        if (gaveUp > 0) {
+          _logger.warning(
+            '$gaveUp events failed: more than $maxRetries server errors',
+          );
+        }
+      });
+
+  /// Pending events an automatic upload may send now.
+  Future<int> dueCount() => _database.eventDao.dueCount(_now());
+
+  /// When the earliest retry wait ends, if any.
+  Future<DateTime?> nextRetryAt() => _database.eventDao.earliestRetryAt();
 
   Future<void> _log(
     UploadTrigger trigger,

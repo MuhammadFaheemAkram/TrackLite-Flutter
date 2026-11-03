@@ -6,6 +6,9 @@ abstract final class MetaKeys {
   static const anonymousId = 'anonymous_id';
   static const userId = 'user_id';
 
+  /// What the background task needs of the config (JSON).
+  static const backgroundConfig = 'background_config';
+
   /// Running totals. Counters, not row counts: sent rows are pruned after
   /// a day, and a total must never go down because of that.
   static const trackedTotal = 'tracked_total';

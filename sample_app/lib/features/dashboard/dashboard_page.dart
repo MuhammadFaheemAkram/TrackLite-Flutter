@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:tracklite_sample/core/design_system/design_system.dart';
 import 'package:tracklite_sample/di/injection.dart';
 import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
+import 'package:tracklite_sample/domain/network/device_network.dart';
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_cubit.dart';
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_state.dart';
 import 'package:tracklite_sample/features/dashboard/flush_words.dart';
@@ -39,7 +40,11 @@ class DashboardView extends StatelessWidget {
         },
         builder: (context, state) => switch (state.queue) {
           null => const LoadingView(message: 'Reading the queue…'),
-          final queue => _QueueView(queue, flushing: state.flushing),
+          final queue => _QueueView(
+            queue,
+            network: state.network,
+            flushing: state.flushing,
+          ),
         },
       ),
     );
@@ -47,9 +52,10 @@ class DashboardView extends StatelessWidget {
 }
 
 class _QueueView extends StatelessWidget {
-  const _QueueView(this.queue, {required this.flushing});
+  const _QueueView(this.queue, {required this.network, required this.flushing});
 
   final QueueStats queue;
+  final NetworkStatus? network;
   final bool flushing;
 
   @override
@@ -118,6 +124,19 @@ class _QueueView extends StatelessWidget {
             ],
           ),
         ),
+        if (network case final network?) ...[
+          const SectionHeader('Network'),
+          _NetworkRow(network),
+          SwitchListTile.adaptive(
+            title: const Text('Device offline'),
+            subtitle: const Text(
+              'For the demo: the SDK sees no network, stores events and '
+              'waits. Switch it off to see the reconnect send them.',
+            ),
+            value: network.simulatingOffline,
+            onChanged: context.read<DashboardCubit>().simulateOffline,
+          ),
+        ],
         const SectionHeader('Totals'),
         StatRow(
           icon: Icons.functions,
@@ -146,6 +165,30 @@ class _QueueView extends StatelessWidget {
           subtitle: Text(queue.anonymousId),
         ),
       ],
+    );
+  }
+}
+
+class _NetworkRow extends StatelessWidget {
+  const _NetworkRow(this.network);
+
+  final NetworkStatus network;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final (icon, label, color) = switch (network) {
+      NetworkStatus(online: true) => (Icons.wifi, 'Online', colors.sent),
+      NetworkStatus(simulatingOffline: true) => (
+        Icons.wifi_off,
+        'Offline (simulated)',
+        colors.offline,
+      ),
+      _ => (Icons.wifi_off, 'Offline: no connection', colors.offline),
+    };
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(label),
     );
   }
 }

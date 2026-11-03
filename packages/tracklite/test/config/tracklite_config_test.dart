@@ -118,6 +118,6 @@ void main() {
       a,
       isNot(TrackLiteConfig(apiKey: 'k', transport: FakeAnalyticsServer())),
     );
-    expect(a.toString(), contains('transport: FakeAnalyticsServer)'));
+    expect(a.toString(), contains('transport: FakeAnalyticsServer,'));
   });
 }

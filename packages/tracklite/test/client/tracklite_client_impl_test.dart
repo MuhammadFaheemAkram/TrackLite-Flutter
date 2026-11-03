@@ -8,8 +8,10 @@ import 'package:tracklite/src/client/tracklite_client_impl.dart';
 import 'package:tracklite/src/storage/meta_keys.dart';
 import 'package:tracklite/src/storage/tracklite_database.dart';
 import 'package:tracklite/src/util/tracklite_logger.dart';
+import 'package:tracklite/testing.dart';
 import 'package:tracklite/tracklite.dart';
 
+import '../helpers/fakes.dart';
 import '../helpers/scripted_transport.dart';
 import '../helpers/sdk.dart';
 
@@ -115,6 +117,63 @@ void main() {
     expect((await db.eventDao.all()).single.status, 'sent');
   });
 
+  group('automatic uploads (the scheduler, wired in)', () {
+    test('a full batch tracked: uploaded with no flush', () async {
+      final server = instantServer();
+      final client = await openTestClient(
+        config: testConfig(transport: server, batchSize: 3),
+        database: db,
+      );
+      addTearDown(client.shutdown);
+
+      client
+        ..track('a')
+        ..track('b')
+        ..track('c');
+      await client.idle;
+      await pumpEventQueue(times: 50);
+
+      expect(server.stats.accepted, 3);
+      final runs = await db.uploadDao.newest();
+      expect(runs.first.trigger, 'threshold');
+    });
+
+    test('back online: what waited is sent', () async {
+      final server = instantServer();
+      final monitor = FakeNetworkMonitor(online: false);
+      final client = await openTestClient(
+        config: testConfig(transport: server, networkMonitor: monitor),
+        database: db,
+      );
+      addTearDown(client.shutdown);
+      client.track('offline_tap');
+      await client.idle;
+      expect(await client.flush(), isA<Offline>());
+
+      monitor.online = true;
+      await pumpEventQueue(times: 50);
+
+      expect(server.stats.accepted, 1);
+      expect(client.isOnline, isTrue);
+    });
+
+    test('shutdown stops the scheduler and the lifecycle', () async {
+      final lifecycle = FakeAppLifecycle();
+      final server = instantServer();
+      final monitor = FakeNetworkMonitor();
+      final client = await openTestClient(
+        config: testConfig(transport: server, networkMonitor: monitor),
+        database: db,
+        lifecycle: lifecycle,
+      );
+
+      await client.shutdown();
+
+      expect(lifecycle.disposed, isTrue);
+      expect(monitor.hasListener, isFalse);
+    });
+  });
+
   group('shutdown', () {
     test('stores what was tracked, then closes the file', () async {
       final dir = Directory.systemTemp.createTempSync('tracklite');
@@ -209,8 +268,10 @@ void main() {
 
   test('an error inside a call is logged, never thrown at the app', () async {
     final client = await TrackLiteClientImpl.open(
-      const TrackLiteConfig(apiKey: 'demo_key', debugMode: true),
+      testConfig(),
       database: db,
+      lifecycle: FakeAppLifecycle(),
+      background: FakeBackgroundUploads(),
       logger: TrackLiteLogger(
         enabled: true,
         sink: (level, message, {error, stackTrace}) {

@@ -8,6 +8,7 @@ import 'package:tracklite/src/storage/meta_keys.dart';
 import 'package:tracklite/src/storage/tracklite_database.dart';
 import 'package:tracklite/src/upload/upload_manager.dart';
 import 'package:tracklite/src/util/tracklite_logger.dart';
+import 'package:tracklite/testing.dart';
 import 'package:tracklite/tracklite.dart';
 
 import '../helpers/scripted_transport.dart';
@@ -35,17 +36,26 @@ void main() {
   });
   tearDown(() => db.close());
 
-  UploadManager uploader(AnalyticsTransport transport, {int batchSize = 20}) =>
-      UploadManager(
-        database: db,
-        recorder: recorder,
-        transport: transport,
-        apiKey: 'demo_key',
-        batchSize: batchSize,
-        logger: logs.logger(),
-        newId: () => 'claim-${ids()}',
-        clock: Clock(() => now),
-      );
+  late FakeNetworkMonitor monitor;
+  setUp(() => monitor = FakeNetworkMonitor());
+
+  UploadManager uploader(
+    AnalyticsTransport transport, {
+    int batchSize = 20,
+    int maxRetries = 5,
+  }) => UploadManager(
+    database: db,
+    recorder: recorder,
+    transport: transport,
+    monitor: monitor,
+    apiKey: 'demo_key',
+    batchSize: batchSize,
+    maxRetries: maxRetries,
+    retry: const RetryPolicy(),
+    logger: logs.logger(),
+    newId: () => 'claim-${ids()}',
+    clock: Clock(() => now),
+  );
 
   void track(int count, {String name = 'tap'}) {
     for (var i = 0; i < count; i++) {
@@ -358,6 +368,8 @@ void main() {
       );
       track(25);
       await uploads.upload(UploadTrigger.manual);
+      // The failed batch waits its minute of backoff.
+      now = now.add(const Duration(minutes: 1));
       await uploads.upload(UploadTrigger.interval);
       await uploads.upload(UploadTrigger.threshold);
 
@@ -370,7 +382,7 @@ void main() {
           ('manual', 'failed', 1, 20, 'server error 500'),
         ],
       );
-      expect(runs.first.startedAt, testNow);
+      expect(runs.last.startedAt, testNow);
     });
 
     test('a rejected key is logged as unauthorized', () async {
@@ -400,4 +412,163 @@ void main() {
       expect((await db.uploadDao.newest()).single.outcome, 'failed');
     },
   );
+
+  group('retries', () {
+    Future<List<(String, int, DateTime?)>> retryState() async => [
+      for (final row in await db.eventDao.all())
+        (row.status, row.attempts, row.nextAttemptAt),
+    ];
+
+    test('a 5xx: +1 attempt, then the backoff: 1 min, then 2', () async {
+      final transport = ScriptedTransport([
+        const ServerFailure(500),
+        const ServerFailure(503),
+      ]);
+      final uploads = uploader(transport);
+      track(1);
+
+      await uploads.upload(UploadTrigger.manual);
+      expect(await retryState(), [
+        ('pending', 1, testNow.add(const Duration(minutes: 1))),
+      ]);
+
+      // Not due yet: an automatic run sends nothing.
+      expect(
+        await uploads.upload(UploadTrigger.interval),
+        isA<NothingToSend>(),
+      );
+      expect(transport.batches, hasLength(1));
+
+      now = testNow.add(const Duration(minutes: 1));
+      await uploads.upload(UploadTrigger.retryDue);
+      expect(await retryState(), [
+        ('pending', 2, now.add(const Duration(minutes: 2))),
+      ]);
+    });
+
+    test('past maxRetries: failed, kept, with the last error', () async {
+      final uploads = uploader(
+        ScriptedTransport([
+          for (var i = 0; i < 3; i++) const ServerFailure(500),
+        ]),
+        maxRetries: 2,
+      );
+      track(1);
+
+      for (var i = 0; i < 3; i++) {
+        await uploads.upload(UploadTrigger.manual, ignoreBackoff: true);
+      }
+
+      final row = (await db.eventDao.all()).single;
+      expect(
+        (row.status, row.attempts, row.nextAttemptAt),
+        ('failed', 3, null),
+      );
+      expect(row.lastError, 'server error 500');
+      expect(
+        logs.at(LogLevel.warning),
+        contains('1 events failed: more than 2 server errors'),
+      );
+    });
+
+    test('maxRetries 0: the first server error is final', () async {
+      final uploads = uploader(
+        ScriptedTransport([const ServerFailure(500)]),
+        maxRetries: 0,
+      );
+      track(1);
+
+      await uploads.upload(UploadTrigger.manual);
+
+      expect(await statuses(), ['failed']);
+    });
+
+    test('each event waits its own backoff in a mixed batch', () async {
+      final transport = ScriptedTransport([
+        const ServerFailure(500),
+        const ServerFailure(500),
+      ]);
+      final uploads = uploader(transport);
+      track(1, name: 'old');
+      await uploads.upload(UploadTrigger.manual);
+      track(1, name: 'new');
+
+      await uploads.upload(UploadTrigger.manual, ignoreBackoff: true);
+
+      expect(await retryState(), [
+        ('pending', 2, testNow.add(const Duration(minutes: 2))),
+        ('pending', 1, testNow.add(const Duration(minutes: 1))),
+      ]);
+    });
+
+    test('unreachable: no attempt counted, no wait', () async {
+      final uploads = uploader(
+        ScriptedTransport([
+          for (var i = 0; i < 10; i++) const ServerUnreachable(),
+        ]),
+        maxRetries: 2,
+      );
+      track(1);
+
+      for (var i = 0; i < 10; i++) {
+        await uploads.upload(UploadTrigger.interval);
+      }
+
+      expect(await retryState(), [('pending', 0, null)]);
+    });
+
+    test('a 401: no attempt, and automatic uploads pause', () async {
+      final uploads = uploader(ScriptedTransport([const ApiKeyRejected()]));
+      track(1);
+      expect(uploads.pausedByRejectedKey, isFalse);
+
+      await uploads.upload(UploadTrigger.manual);
+
+      expect(uploads.pausedByRejectedKey, isTrue);
+      expect(await retryState(), [('pending', 0, null)]);
+    });
+
+    test('the earliest retry time and the due count', () async {
+      final uploads = uploader(
+        ScriptedTransport([const ServerFailure(500)]),
+        batchSize: 1,
+      );
+      track(3);
+      expect(await uploads.nextRetryAt(), isNull);
+      expect(await uploads.dueCount(), 3);
+
+      await uploads.upload(UploadTrigger.manual);
+
+      expect(
+        await uploads.nextRetryAt(),
+        testNow.add(const Duration(minutes: 1)),
+      );
+      expect(await uploads.dueCount(), 2);
+    });
+  });
+
+  group('offline', () {
+    test('nothing is attempted, and the events are untouched', () async {
+      final transport = ScriptedTransport();
+      monitor.online = false;
+      track(3);
+
+      final result = await uploader(transport).upload(UploadTrigger.manual);
+
+      expect(result, isA<Offline>());
+      expect(transport.batches, isEmpty);
+      expect(await statuses(), everyElement('pending'));
+    });
+
+    test('a manual flush offline is logged; an automatic one is not', () async {
+      monitor.online = false;
+      final uploads = uploader(ScriptedTransport());
+
+      await uploads.upload(UploadTrigger.manual);
+      await uploads.upload(UploadTrigger.reconnect);
+
+      final runs = await db.uploadDao.newest();
+      expect(runs.map((r) => (r.trigger, r.outcome)), [('manual', 'offline')]);
+    });
+  });
 }

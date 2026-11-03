@@ -12,6 +12,8 @@ import 'helpers/sdk.dart';
 // does when the SDK isn't running. It must never throw at the app, except
 // for a bad configuration.
 void main() {
+  // The facade starts the real app lifecycle, which needs the binding.
+  TestWidgetsFlutterBinding.ensureInitialized();
   final config = testConfig(debugMode: false);
 
   setUpAll(TrackLiteTesting.useInMemoryDatabase);

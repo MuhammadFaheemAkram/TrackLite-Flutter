@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../helpers/app_harness.dart';
 
@@ -6,6 +7,14 @@ import '../helpers/app_harness.dart';
 // the Dashboard shows it from the SDK's own stream.
 void main() {
   tearDown(tearDownSample);
+
+  // Phone width, but tall enough for the whole Dashboard: a lazy list
+  // builds only the rows that show.
+  Future<void> pumpTall(WidgetTester tester, {String? initialLocation}) async {
+    await pumpSample(tester, initialLocation: initialLocation);
+    tester.view.physicalSize = const Size(390 * 3, 2000 * 3);
+    await tester.pump();
+  }
 
   Future<void> settleStorage(WidgetTester tester) async {
     // The SDK writes on its own schedule (a microtask, then the database);
@@ -17,7 +26,7 @@ void main() {
   testWidgets('a fresh install: an empty queue and an anonymous id', (
     tester,
   ) async {
-    await pumpSample(tester, initialLocation: '/dashboard');
+    await pumpTall(tester, initialLocation: '/dashboard');
     await settleStorage(tester);
 
     expect(find.bySemanticsLabel('Pending: 0'), findsOneWidget);
@@ -28,7 +37,7 @@ void main() {
   testWidgets('Buy, then the Dashboard: the purchase is stored, pending', (
     tester,
   ) async {
-    await pumpSample(tester, initialLocation: '/shop/grinder');
+    await pumpTall(tester, initialLocation: '/shop/grinder');
 
     await tester.tapAndSettle(find.text('Buy'));
     await settleStorage(tester);
@@ -40,7 +49,7 @@ void main() {
   });
 
   testWidgets('the Dashboard updates while it is open', (tester) async {
-    await pumpSample(tester, initialLocation: '/dashboard');
+    await pumpTall(tester, initialLocation: '/dashboard');
     await settleStorage(tester);
 
     await tester.tapAndSettle(destination('Home'));
@@ -56,7 +65,7 @@ void main() {
   testWidgets('Flush now sends the queue to the server: Sent 1, Pending 0', (
     tester,
   ) async {
-    await pumpSample(tester, initialLocation: '/shop/grinder');
+    await pumpTall(tester, initialLocation: '/shop/grinder');
     await tester.tapAndSettle(find.text('Buy'));
     await tester.tapAndSettle(destination('Dashboard'));
     await settleStorage(tester);
@@ -74,7 +83,7 @@ void main() {
   testWidgets('a failing server: the purchase stays pending, and says why', (
     tester,
   ) async {
-    await pumpSample(tester, initialLocation: '/shop/grinder');
+    await pumpTall(tester, initialLocation: '/shop/grinder');
     testServer.failureRate = 1;
     await tester.tapAndSettle(find.text('Buy'));
     await tester.tapAndSettle(destination('Dashboard'));
@@ -89,5 +98,35 @@ void main() {
       findsOneWidget,
     );
     expect(find.bySemanticsLabel('Pending: 1'), findsOneWidget);
+  });
+
+  testWidgets('Device offline: Flush waits; switched back on, the reconnect '
+      'sends what waited', (tester) async {
+    await pumpTall(tester, initialLocation: '/shop/grinder');
+    await tester.tapAndSettle(find.text('Buy'));
+    await tester.tapAndSettle(destination('Dashboard'));
+    await settleStorage(tester);
+
+    await tester.tap(find.text('Device offline'));
+    await settleStorage(tester);
+    expect(find.text('Offline (simulated)'), findsOneWidget);
+
+    await tester.tap(find.text('Flush now'));
+    await settleStorage(tester);
+    await settleStorage(tester);
+    expect(
+      find.text("You're offline. Events wait until you're back."),
+      findsOne,
+    );
+    expect(testServer.stats.requests, 0);
+
+    await tester.tap(find.text('Device offline'));
+    for (var i = 0; i < 3; i++) {
+      await settleStorage(tester);
+    }
+
+    // No tap on Flush: the SDK saw the reconnect and uploaded by itself.
+    expect(testServer.stats.accepted, 1);
+    expect(find.text('Online'), findsOneWidget);
   });
 }

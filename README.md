@@ -46,8 +46,8 @@ The SDK is built in **strict, reviewable phases**. Each phase ends with:
 | 1 | SDK foundation: the workspace, the public API's shape, the config and its rules, the sample app's shell and screens, CI | ✅ Done |
 | 2 | Event storage: drift, the queue, validation, the anonymous id, `track()` stores events | ✅ Done |
 | 3 | The upload pipeline: the fake server, batching, statuses, at least once | ✅ Done |
-| 4 | Retries and background uploads: backoff, the network monitor, the triggers, `workmanager` | ⏳ Next |
-| 5 | The debug dashboard and SDK tools: identity, the debug surface, screen tracking | |
+| 4 | Retries and background uploads: backoff, the network monitor, the triggers, `workmanager` | ✅ Done |
+| 5 | The debug dashboard and SDK tools: identity, the debug surface, screen tracking | ⏳ Next |
 | 6 | Documentation & CI | |
 
 ---
@@ -84,9 +84,11 @@ The public API is one library, [`package:tracklite/tracklite.dart`](packages/tra
 | `AnalyticsTransport`, `UploadBatch`, `UploadResponse` | The network boundary: set `TrackLiteConfig.transport` to send to a real backend |
 | `TransportException` (`ServerUnreachable`, `ServerFailure`, `ApiKeyRejected`, `RequestRejected`) | Why an upload failed; the kind decides what happens to the batch |
 | `FakeAnalyticsServer`, `FakeServerStats` | The default transport: latency, a failure rate, an API key check, deduplication by event id |
+| `RetryPolicy` | Exponential backoff after a server error: 1 minute, doubling, at most an hour |
+| `NetworkMonitor`, `ConnectivityNetworkMonitor` | Online or not: offline, nothing is attempted; pass your own with `TrackLiteConfig.networkMonitor` |
 | `FlushResult` | What a flush did: `Uploaded`, `NothingToSend`, `Offline`, `Failed`, `Unauthorized`, `NotInitialized` |
 
-A second library, [`package:tracklite/testing.dart`](packages/tracklite/lib/testing.dart), is for an app's tests: `TrackLiteTesting.useInMemoryDatabase()`.
+A second library, [`package:tracklite/testing.dart`](packages/tracklite/lib/testing.dart), is for an app's tests: `TrackLiteTesting.useInMemoryDatabase()`, `TrackLiteTesting.disableTimers()` and `FakeNetworkMonitor`.
 
 Everything else is in `lib/src/`, marked `@internal`, and out of reach.
 
@@ -105,6 +107,12 @@ Everything else is in `lib/src/`, marked `@internal`, and out of reach.
   - A batch is **claimed** in one statement (`pending` → `sending`), so two uploaders never send the same event.
   - A failure stops the run and keeps the events: back to `pending`, or `failed` for a refused (400) batch.
 - **At least once:** a claim older than 5 minutes (the app died mid-upload) goes back to `pending` and is sent again; the server drops the duplicates by event id.
+- **Retries with backoff** (0.4.0):
+  - a server error (5xx) counts an attempt, and the event waits 1, 2, 4… minutes (at most an hour);
+  - past `maxRetries`, it is `failed`, kept;
+  - an unreachable server isn't counted, and a rejected key pauses automatic uploads.
+- **Automatic uploads:** every 30 s in the foreground, on a full batch, when the app goes to the background, on reconnect, and when a retry is due. Offline, nothing is attempted.
+- **Background uploads** with `workmanager`, about every 15 minutes, reading the config `initialize` saved. An app with its own dispatcher calls `TrackLite.runBackgroundUpload()`.
 
 ---
 
@@ -124,7 +132,7 @@ Everything else is in `lib/src/`, marked `@internal`, and out of reach.
   - **Demo controls:** Device offline, the server's failure rate, its latency.
 - ♿ **Accessible:** dark mode and large text on every screen; never color alone. A test tour grows with the app and checks both.
 
-After Phase 3, Home's buttons and Buy store their events through the app's own `AnalyticsService` port. The **Dashboard shows the queue live** (the counts by status, the totals, the ids), and **Flush now** sends it to the fake server, saying what happened.
+After Phase 4, Home's buttons and Buy store their events through the app's own `AnalyticsService` port. The **Dashboard shows the queue live** (the counts by status, the totals, the ids), **Flush now** sends it to the fake server, and **Device offline** (the sample's own network monitor, given to the SDK) shows events waiting and the reconnect sending them. The SDK also uploads by itself, in the foreground and in the background.
 
 ---
 
@@ -141,6 +149,8 @@ An SDK's dependencies become every host app's dependencies, so **the SDK and the
 | Public models | hand-written immutable classes; `meta` (`@internal`) | — | 1 |
 | The queue | [`drift`](https://pub.dev/packages/drift) + `drift_flutter` (its own `tracklite.sqlite`, schema v1 exported) | — | 2 |
 | Ids and time | `uuid` (event and anonymous ids), `clock` (an injected "now") | — | 2 |
+| Network | `connectivity_plus`, behind `NetworkMonitor` | the demo's `DemoNetworkMonitor` | 4 |
+| Background | `workmanager` (WorkManager / `BGTaskScheduler`) | the iOS host setup | 4 |
 | UI | — | [`material_ui`](https://pub.dev/packages/material_ui) (Material 3), `cupertino_ui` | 1 |
 | Navigation | — | `go_router` + `go_router_builder` (typed routes, `StatefulShellRoute`) | 1 |
 | DI | none: a hand-written composition root | `get_it` + `injectable` | 1 |
@@ -149,7 +159,6 @@ An SDK's dependencies become every host app's dependencies, so **the SDK and the
 | Lints / CI | strict analysis + `public_member_api_docs`; `pub publish --dry-run` | strict analysis; `implementation_imports` as an error | 1 |
 | Testing | `flutter_test` | `flutter_test`, `bloc_test`, `mocktail` | 1 |
 
-Planned for the SDK: `connectivity_plus`, `workmanager` (Phase 4).
 
 ---
 
@@ -234,29 +243,31 @@ fvm dart format --output=none --set-exit-if-changed .
 (cd packages/tracklite && fvm flutter pub publish --dry-run)
 ```
 
-**263 tests** after Phase 3:
-- **The SDK (140):**
-  - **the config's rules,** including the transport;
-  - **the database:** each `CHECK`, `seq` order, dropping the oldest unsent, the counters; **claims** (atomic, the limit, a second claim gets the rest, retries that wait), expired claims, outcomes and pruning, the upload log's limit;
-  - **every schema upgrade path,** and v1 → v2 keeping real events;
-  - the validator, the recorder (group commit, all or nothing), the identity;
-  - **the fake server:** dedupe, latency in fake time, unreachable, the key check, the batch limit, a seeded failure rate, the JSON body;
-  - **the uploader:**
-    - 100 events in 5 batches, oldest first;
-    - each failure kind and its effect;
-    - a partial run;
-    - a crash after the server stored a batch (resent, deduplicated);
-    - single-flight;
-    - pruning and the log;
-    - a database failing mid-run;
-  - the client, the facade (early calls, starts), the public API's exact names, the version.
-- **The sample (123):**
-  - the theme, routes and navigation;
-  - the Cubits and views;
-  - **the adapter,** mapping every `FlushResult`;
-  - the flush wording;
-  - **the real SDK in memory:** a purchase stored, flushed to the server, then shown as sent; a failing server keeping it pending;
-  - the SDK boundary, and the accessibility tour.
+**328 tests** after Phase 4:
+- **The SDK (191):** everything from Phase 3, plus:
+  - **the retry policy:** every step, the cap, overflow, its rules;
+  - **the error table:**
+    - a 5xx counted with its backoff, per event;
+    - `failed` past `maxRetries`;
+    - unreachable not counted;
+    - a 401 pausing;
+    - offline attempting nothing;
+  - **every trigger in fake time:**
+    - interval, threshold, paused, reconnect, retry due;
+    - offline and a rejected key blocking them;
+    - stop leaving no timer, a past retry not looping, the timers switch;
+  - **the monitors:** connectivity results, a failing plugin, changes right after listening;
+  - **the lifecycle:** Flutter's followed, and no binding falling back to the foreground;
+  - **background:**
+    - the saved config;
+    - the runner on a real file (uploads, respects backoff, offline, a broken database);
+    - **two uploaders on one database sending each event once;**
+    - registration on and off, and a failing platform;
+  - the client's automatic uploads (a full batch, a reconnect).
+- **The sample (137):** everything from Phase 3, plus:
+  - the demo monitor (the switch, the SDK's stream, the Dashboard's);
+  - the Network section;
+  - **the real SDK:** Device offline holding a purchase, and switching back on sending it with no tap.
 
 CI runs on every push to `main` and every pull request:
 - the FVM-pinned Flutter;
@@ -282,6 +293,9 @@ CI runs on every push to `main` and every pull request:
 | Hiding internals | `internal` | `internal` | `lib/src/` + `show` lists + `@internal` |
 | The queue | Room | SwiftData (an actor guards it) | drift, a serial write queue (one transaction per frame) |
 | Uploads | `FakeAnalyticsApi`, batches | `FakeAnalyticsService`, batches | `AnalyticsTransport` + `FakeAnalyticsServer`; atomic claims, at least once, dedupe by id |
+| Retry | exponential backoff | the same | the same, with what counts defined (5xx yes, unreachable no, 401 pauses, 400 final) |
+| Background | WorkManager | `BGTaskScheduler` | `workmanager` (both), the SDK's dispatcher, `shareAcrossIsolates` |
+| Network | a fake monitor | `NWPathMonitor` + a fake | `NetworkMonitor` over `connectivity_plus`; the host can pass its own |
 | Sample state | ViewModel + StateFlow | `@Observable` | Cubit, behind an `AnalyticsService` port |
 | CI | `android-ci.yml` | `ios-ci.yml` | `flutter-ci.yml` (+ `pub publish --dry-run`) |
 
@@ -294,6 +308,7 @@ The full table (the queue, concurrency, background work, retries) grows with the
 - [Phase 1 — SDK Foundation](docs/PHASE_1_SUMMARY.md)
 - [Phase 2 — Event Storage Layer](docs/PHASE_2_SUMMARY.md)
 - [Phase 3 — Analytics Processing Pipeline](docs/PHASE_3_SUMMARY.md)
+- [Phase 4 — Retry + Background Uploads](docs/PHASE_4_SUMMARY.md)
 - The SDK's own [README](packages/tracklite/README.md) and [CHANGELOG](packages/tracklite/CHANGELOG.md)
 
 ---

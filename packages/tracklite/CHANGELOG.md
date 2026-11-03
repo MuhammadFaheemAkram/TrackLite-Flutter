@@ -1,3 +1,31 @@
+## 0.4.0
+
+- **Retries with backoff:**
+  - `RetryPolicy` (1 minute, doubling, at most an hour), set by `TrackLiteConfig.retry`;
+  - a server error (5xx) counts an attempt, and the event waits its backoff;
+  - past `maxRetries`, it is `failed`, kept with its last error.
+- **What isn't counted:**
+  - an unreachable server, because it never saw the events;
+  - a rejected API key (401), which pauses automatic uploads until the next `initialize`.
+- **`NetworkMonitor`:**
+  - the default is `ConnectivityNetworkMonitor` (`connectivity_plus`), and an app can pass its own (`TrackLiteConfig.networkMonitor`);
+  - offline, nothing is attempted and `flush()` returns `Offline`.
+- **Automatic uploads:**
+  - every `flushInterval` in the foreground;
+  - when a write leaves a full batch due;
+  - when the app goes to the background;
+  - on reconnect;
+  - when the earliest retry wait ends.
+
+  All respect backoff; an explicit `flush()` ignores it.
+- **Background uploads** with `workmanager`, about every 15 minutes, with a network:
+  - registered at `initialize` when `backgroundUploads` is true, and cancelled when false;
+  - the task reads the config `initialize` saved;
+  - an app with its own `workmanager` dispatcher calls `TrackLite.runBackgroundUpload()`;
+  - iOS needs the task registered in the host (see the README).
+- **The database is shared across isolates,** so the app and the background task can upload at once; claims keep them apart.
+- `FakeNetworkMonitor` in `package:tracklite/testing.dart`.
+
 ## 0.3.0
 
 - **Events are uploaded.** `flush()` stores what was tracked, then sends every pending event in batches of `batchSize`, oldest first, and reports a `FlushResult`.

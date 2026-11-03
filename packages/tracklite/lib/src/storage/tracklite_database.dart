@@ -22,7 +22,18 @@ class TrackLiteDatabase extends _$TrackLiteDatabase {
   TrackLiteDatabase(super.executor);
 
   /// The database on the device.
-  TrackLiteDatabase.onDevice() : this(driftDatabase(name: 'tracklite'));
+  ///
+  /// `shareAcrossIsolates`: the background upload runs in another isolate
+  /// (sometimes while the app is open). With it, both use one connection
+  /// through a shared isolate, so their writes are serialized, and the
+  /// app's streams see the background's changes.
+  TrackLiteDatabase.onDevice()
+    : this(
+        driftDatabase(
+          name: 'tracklite',
+          native: const DriftNativeOptions(shareAcrossIsolates: true),
+        ),
+      );
 
   /// A fresh database in memory: for tests, and for a session whose file
   /// can't be opened. `closeStreamsSynchronously` lets widget tests end

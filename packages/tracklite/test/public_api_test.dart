@@ -13,6 +13,8 @@ import 'package:tracklite/tracklite.dart';
 // and lists the exports (so adding a name is a reviewed change to this
 // test).
 void main() {
+  // The facade starts the real app lifecycle, which needs the binding.
+  TestWidgetsFlutterBinding.ensureInitialized();
   for (final (path, names) in [
     ('lib/tracklite.dart', _exported),
     ('lib/testing.dart', _testing),
@@ -48,7 +50,15 @@ void main() {
     TrackLiteTesting.useInMemoryDatabase();
     addTearDown(TrackLiteTesting.useDeviceDatabase);
     final server = FakeAnalyticsServer(latency: Duration.zero, failureRate: 0);
-    final config = TrackLiteConfig(apiKey: 'demo_key', transport: server);
+    final NetworkMonitor monitor = FakeNetworkMonitor();
+    final config = TrackLiteConfig(
+      apiKey: 'demo_key',
+      transport: server,
+      networkMonitor: monitor,
+      retry: const RetryPolicy(base: Duration(seconds: 30)),
+      backgroundUploads: false,
+    );
+    expect(ConnectivityNetworkMonitor(), isA<NetworkMonitor>());
     await TrackLite.initialize(config);
     addTearDown(TrackLite.shutdown);
 
@@ -64,6 +74,8 @@ void main() {
     final TrackLiteStats stats = await debug.watchStats().first;
     expect(stats.tracked, 2);
     expect(TrackLite.earlyCallLimit, 100);
+    final FlushResult background = await TrackLite.runBackgroundUpload();
+    expect(describe(background), isNotEmpty);
     expect(TrackLite.version, matches(RegExp(r'^\d+\.\d+\.\d+$')));
 
     expect(server.stats, isA<FakeServerStats>());
@@ -131,6 +143,9 @@ const _exported = [
   'RequestRejected',
   'FakeAnalyticsServer',
   'FakeServerStats',
+  'RetryPolicy',
+  'NetworkMonitor',
+  'ConnectivityNetworkMonitor',
   'FlushResult',
   'Uploaded',
   'NothingToSend',
@@ -140,7 +155,7 @@ const _exported = [
   'NotInitialized',
 ];
 
-const _testing = ['TrackLiteTesting'];
+const _testing = ['TrackLiteTesting', 'FakeNetworkMonitor'];
 
 /// What a host might show for each result. Exhaustive with no default: a
 /// new case is a compile error here, as it would be in every such app.

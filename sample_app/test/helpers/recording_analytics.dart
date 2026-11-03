@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:tracklite_sample/domain/analytics/analytics_service.dart';
 import 'package:tracklite_sample/domain/analytics/flush_outcome.dart';
 import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
+import 'package:tracklite_sample/domain/network/device_network.dart';
 
 /// One event an [AnalyticsService] was asked to track. A value: two with the
 /// same name and properties are equal (a record holding a `Map` wouldn't be,
@@ -63,4 +64,18 @@ class RecordingAnalytics implements AnalyticsService {
 
   @override
   void reset() => identities.add(null);
+}
+
+/// A [DeviceNetwork] a test sets by hand, remembering the switch's calls.
+class FakeDeviceNetwork implements DeviceNetwork {
+  final _status = StreamController<NetworkStatus>.broadcast();
+  final List<bool> switched = [];
+
+  void emit(NetworkStatus status) => _status.add(status);
+
+  @override
+  Stream<NetworkStatus> watchStatus() => _status.stream;
+
+  @override
+  void simulateOffline(bool offline) => switched.add(offline);
 }

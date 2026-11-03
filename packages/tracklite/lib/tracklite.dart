@@ -9,6 +9,8 @@ export 'package:tracklite/src/client/tracklite_client.dart'
     show TrackLiteClient;
 export 'package:tracklite/src/config/tracklite_config.dart'
     show TrackLiteConfig;
+export 'package:tracklite/src/connectivity/network_monitor.dart'
+    show ConnectivityNetworkMonitor, NetworkMonitor;
 export 'package:tracklite/src/debug/tracklite_debug.dart' show TrackLiteDebug;
 export 'package:tracklite/src/model/event_status.dart' show EventStatus;
 export 'package:tracklite/src/model/flush_result.dart'
@@ -34,4 +36,5 @@ export 'package:tracklite/src/network/analytics_transport.dart'
         UploadResponse;
 export 'package:tracklite/src/network/fake_analytics_server.dart'
     show FakeAnalyticsServer, FakeServerStats;
+export 'package:tracklite/src/retry/retry_policy.dart' show RetryPolicy;
 export 'package:tracklite/src/tracklite.dart' show TrackLite;

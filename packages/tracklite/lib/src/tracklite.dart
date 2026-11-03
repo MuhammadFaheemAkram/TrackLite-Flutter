@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:clock/clock.dart';
+import 'package:tracklite/src/background/background_runner.dart' as background;
 import 'package:tracklite/src/client/tracklite_client.dart';
 import 'package:tracklite/src/client/tracklite_client_impl.dart';
 import 'package:tracklite/src/config/tracklite_config.dart';
@@ -137,6 +138,16 @@ abstract final class TrackLite {
     _earlyDropped = 0;
     await client?.shutdown();
   }
+
+  /// Uploads what is due, once, from a background isolate: for an app that
+  /// runs its own `workmanager` dispatcher (there can be only one per app).
+  ///
+  /// Set `backgroundUploads: false` in the config, then call this from the
+  /// app's dispatcher for its own periodic task. It opens the database,
+  /// reads the config `initialize` saved, uploads (respecting backoff) and
+  /// closes. It never throws.
+  static Future<FlushResult> runBackgroundUpload() =>
+      background.runBackgroundUpload();
 
   /// The running client, for apps that inject the SDK rather than call the
   /// facade (and for their tests, which pass a fake instead).

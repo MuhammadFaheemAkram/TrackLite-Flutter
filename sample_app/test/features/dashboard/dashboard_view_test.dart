@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:tracklite_sample/core/design_system/design_system.dart';
 import 'package:tracklite_sample/domain/analytics/flush_outcome.dart';
 import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
+import 'package:tracklite_sample/domain/network/device_network.dart';
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_cubit.dart';
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_state.dart';
 import 'package:tracklite_sample/features/dashboard/dashboard_page.dart';
@@ -138,5 +139,43 @@ void main() {
       find.widgetWithText(SnackBar, 'Sent 3 events in 1 request.'),
       findsOneWidget,
     );
+  });
+
+  group('the network', () {
+    for (final (status, label) in [
+      (const NetworkStatus(deviceOnline: true), 'Online'),
+      (
+        const NetworkStatus(deviceOnline: true, simulatingOffline: true),
+        'Offline (simulated)',
+      ),
+      (const NetworkStatus(deviceOnline: false), 'Offline: no connection'),
+    ]) {
+      testWidgets(label, (tester) async {
+        await pump(tester, ready.copyWith(network: status));
+
+        expect(find.text(label), findsOneWidget);
+        final toggle = tester.widget<SwitchListTile>(
+          find.byType(SwitchListTile),
+        );
+        expect(toggle.value, status.simulatingOffline);
+      });
+    }
+
+    testWidgets('the Device offline switch goes to the Cubit', (tester) async {
+      await pump(
+        tester,
+        ready.copyWith(network: const NetworkStatus(deviceOnline: true)),
+      );
+
+      await tester.tap(find.text('Device offline'));
+
+      verify(() => cubit.simulateOffline(true)).called(1);
+    });
+
+    testWidgets('before the network is known: no section yet', (tester) async {
+      await pump(tester, ready);
+
+      expect(find.text('Device offline'), findsNothing);
+    });
   });
 }

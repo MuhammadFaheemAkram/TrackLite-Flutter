@@ -1,20 +1,28 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:meta/meta.dart';
+import 'package:tracklite/src/background/background_runner.dart';
+import 'package:tracklite/src/background/background_uploads.dart';
+import 'package:tracklite/src/background/saved_config.dart';
 import 'package:tracklite/src/client/tracklite_client.dart';
 import 'package:tracklite/src/config/tracklite_config.dart';
+import 'package:tracklite/src/connectivity/network_monitor.dart';
 import 'package:tracklite/src/debug/tracklite_debug.dart';
 import 'package:tracklite/src/identity/identity_store.dart';
 import 'package:tracklite/src/model/flush_result.dart';
 import 'package:tracklite/src/network/fake_analytics_server.dart';
 import 'package:tracklite/src/recording/event_recorder.dart';
+import 'package:tracklite/src/scheduling/app_lifecycle.dart';
+import 'package:tracklite/src/scheduling/upload_scheduler.dart';
 import 'package:tracklite/src/storage/meta_keys.dart';
 import 'package:tracklite/src/storage/tracklite_database.dart';
 import 'package:tracklite/src/upload/upload_manager.dart';
 import 'package:tracklite/src/util/tracklite_logger.dart';
 import 'package:uuid/uuid.dart';
 
-/// The client behind the interface: it stores every event, and uploads
-/// them in batches.
+/// The client behind the interface: it stores every event, uploads them
+/// in batches when a trigger fires, and retries with backoff.
 @internal
 final class TrackLiteClientImpl implements TrackLiteClient {
   TrackLiteClientImpl._({
@@ -24,17 +32,28 @@ final class TrackLiteClientImpl implements TrackLiteClient {
     required this._recorder,
     required this._identity,
     required this._uploads,
+    required this._monitor,
+    required this._ownsMonitor,
+    this._scheduler,
+    this._lifecycle,
   });
 
-  /// Opens the client's database and identity. [database], [clock] and
-  /// [newId] are for tests; by default the database is the file on the
-  /// device, the time is now and ids are UUID v4s.
+  /// Opens the client's database and identity, and starts its uploads.
+  ///
+  /// [database], [clock], [newId], [lifecycle] and [background] are for
+  /// tests; by default the database is the file on the device, the time is
+  /// now, ids are UUID v4s, the lifecycle is Flutter's and background
+  /// uploads use `workmanager`. [inBackground] is the background task's
+  /// client: it uploads once and schedules nothing.
   static Future<TrackLiteClientImpl> open(
     TrackLiteConfig config, {
     TrackLiteDatabase? database,
     TrackLiteLogger? logger,
     Clock? clock,
     String Function()? newId,
+    AppLifecycle? lifecycle,
+    BackgroundUploads? background,
+    bool inBackground = false,
   }) async {
     final log = logger ?? TrackLiteLogger(enabled: config.debugMode);
     final ids = newId ?? const Uuid().v4;
@@ -52,22 +71,75 @@ final class TrackLiteClientImpl implements TrackLiteClient {
         recorder: recorder,
         newId: ids,
       );
+      final ownsMonitor = config.networkMonitor == null;
+      final monitor = config.networkMonitor ?? ConnectivityNetworkMonitor();
+      if (monitor is ConnectivityNetworkMonitor && ownsMonitor) {
+        // Not awaited: until the plugin answers, the monitor says online,
+        // and `initialize` never waits on a platform channel.
+        unawaited(monitor.start());
+      }
+      final uploads = UploadManager(
+        database: database,
+        recorder: recorder,
+        transport: config.transport ?? FakeAnalyticsServer(),
+        monitor: monitor,
+        apiKey: config.apiKey,
+        batchSize: config.batchSize,
+        maxRetries: config.maxRetries,
+        retry: config.retry,
+        logger: log,
+        newId: ids,
+        clock: clock,
+      );
+      if (inBackground) {
+        return TrackLiteClientImpl._(
+          config: config,
+          logger: log,
+          database: database,
+          recorder: recorder,
+          identity: identity,
+          uploads: uploads,
+          monitor: monitor,
+          ownsMonitor: ownsMonitor,
+        );
+      }
+
+      // The background task starts with nothing: it reads this back.
+      recorder.enqueue(
+        SetMeta(MetaKeys.backgroundConfig, encodeConfig(config)),
+      );
+      final appLifecycle = lifecycle ?? createAppLifecycle(log.warning);
+      final scheduler = UploadScheduler(
+        upload: uploads.upload,
+        dueCount: uploads.dueCount,
+        nextRetryAt: uploads.nextRetryAt,
+        monitor: monitor,
+        lifecycle: appLifecycle,
+        interval: config.flushInterval,
+        threshold: config.batchSize,
+        paused: () => uploads.pausedByRejectedKey,
+        logger: log,
+        clock: clock,
+      )..start();
+      recorder.onStored = (stored) => unawaited(scheduler.stored(stored));
+      unawaited(
+        _scheduleBackground(
+          background ?? WorkmanagerUploads(trackLiteBackgroundDispatcher),
+          enabled: config.backgroundUploads,
+          logger: log,
+        ),
+      );
       return TrackLiteClientImpl._(
         config: config,
         logger: log,
         database: database,
         recorder: recorder,
         identity: identity,
-        uploads: UploadManager(
-          database: database,
-          recorder: recorder,
-          transport: config.transport ?? FakeAnalyticsServer(),
-          apiKey: config.apiKey,
-          batchSize: config.batchSize,
-          logger: log,
-          newId: ids,
-          clock: clock,
-        ),
+        uploads: uploads,
+        monitor: monitor,
+        ownsMonitor: ownsMonitor,
+        scheduler: scheduler,
+        lifecycle: appLifecycle,
       );
     }
 
@@ -99,6 +171,30 @@ final class TrackLiteClientImpl implements TrackLiteClient {
   final EventRecorder _recorder;
   final IdentityStore _identity;
   final UploadManager _uploads;
+  final NetworkMonitor _monitor;
+  final bool _ownsMonitor;
+  final UploadScheduler? _scheduler;
+  final AppLifecycle? _lifecycle;
+
+  /// Registers or cancels the periodic background upload. A platform that
+  /// can't (no plugin in a test, an unsupported OS) is logged, never thrown:
+  /// foreground uploads work regardless.
+  static Future<void> _scheduleBackground(
+    BackgroundUploads background, {
+    required bool enabled,
+    required TrackLiteLogger logger,
+  }) async {
+    try {
+      if (enabled) {
+        await background.enable();
+        logger.debug('background uploads: every $backgroundFrequency');
+      } else {
+        await background.disable();
+      }
+    } on Object catch (error, stackTrace) {
+      logger.error('scheduling background uploads failed', error, stackTrace);
+    }
+  }
 
   bool _closed = false;
 
@@ -170,6 +266,13 @@ final class TrackLiteClientImpl implements TrackLiteClient {
   /// Whether an upload is running.
   bool get isUploading => _uploads.isUploading;
 
+  /// Whether the device is online (the monitor's answer).
+  bool get isOnline => _monitor.isOnline;
+
+  /// The background task's one upload: automatic, so it respects backoff.
+  Future<FlushResult> uploadInBackground() =>
+      _uploads.upload(UploadTrigger.background);
+
   @override
   Future<FlushResult> flush() async {
     if (_closed) return const NotInitialized();
@@ -187,10 +290,16 @@ final class TrackLiteClientImpl implements TrackLiteClient {
   Future<void> shutdown() async {
     if (_closed) return;
     _closed = true;
-    // What was tracked before the shutdown is stored, a running upload
-    // finishes, then the file closes.
+    // No new triggers; what was tracked before the shutdown is stored, a
+    // running upload finishes, then the file closes.
+    await _scheduler?.stop();
+    _lifecycle?.dispose();
     await _recorder.close();
     await _uploads.close();
+    final monitor = _monitor;
+    if (_ownsMonitor && monitor is ConnectivityNetworkMonitor) {
+      await monitor.dispose();
+    }
     await database.close();
     logger.debug('shutdown()');
   }
