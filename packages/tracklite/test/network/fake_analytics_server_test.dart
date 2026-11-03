@@ -160,4 +160,26 @@ void main() {
       'the server could not be reached',
     );
   });
+
+  test('watchStats: now, then after every request it receives', () async {
+    final server = instantServer();
+    final seen = <int>[];
+    final subscription = server
+        .watchStats()
+        .map((s) => s.requests)
+        .listen(seen.add);
+    await pumpEventQueue();
+
+    await server.upload(batch(['a']));
+    server.failureRate = 1;
+    try {
+      await server.upload(batch(['b']));
+    } on ServerFailure {
+      // expected
+    }
+    await pumpEventQueue();
+    await subscription.cancel();
+
+    expect(seen, [0, 1, 2]);
+  });
 }

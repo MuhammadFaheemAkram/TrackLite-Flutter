@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:tracklite_sample/domain/analytics/analytics_debug.dart';
 
 part 'queue_stats.freezed.dart';
 
@@ -16,5 +17,14 @@ abstract class QueueStats with _$QueueStats {
     @Default(0) int dropped,
     @Default(0) int rejected,
     String? userId,
+
+    /// When the earliest retry is due, if an event waits for one.
+    DateTime? nextRetryAt,
+
+    /// The newest upload run, if any.
+    UploadRun? lastUpload,
+
+    /// Whether an upload is running now.
+    @Default(false) bool uploading,
   }) = _QueueStats;
 }

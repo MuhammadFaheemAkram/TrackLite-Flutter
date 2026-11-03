@@ -15,7 +15,10 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$QueueStats {
 
- String get anonymousId; int get tracked; int get pending; int get sending; int get sent; int get failed; int get dropped; int get rejected; String? get userId;
+ String get anonymousId; int get tracked; int get pending; int get sending; int get sent; int get failed; int get dropped; int get rejected; String? get userId;/// When the earliest retry is due, if an event waits for one.
+ DateTime? get nextRetryAt;/// The newest upload run, if any.
+ UploadRun? get lastUpload;/// Whether an upload is running now.
+ bool get uploading;
 /// Create a copy of QueueStats
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,20 +30,20 @@ $QueueStatsCopyWith<QueueStats> get copyWith => _$QueueStatsCopyWithImpl<QueueSt
 @override
 bool operator ==(Object other) {
   final _this = this as QueueStats;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is QueueStats&&(identical(other.anonymousId, _this.anonymousId) || other.anonymousId == _this.anonymousId)&&(identical(other.tracked, _this.tracked) || other.tracked == _this.tracked)&&(identical(other.pending, _this.pending) || other.pending == _this.pending)&&(identical(other.sending, _this.sending) || other.sending == _this.sending)&&(identical(other.sent, _this.sent) || other.sent == _this.sent)&&(identical(other.failed, _this.failed) || other.failed == _this.failed)&&(identical(other.dropped, _this.dropped) || other.dropped == _this.dropped)&&(identical(other.rejected, _this.rejected) || other.rejected == _this.rejected)&&(identical(other.userId, _this.userId) || other.userId == _this.userId));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is QueueStats&&(identical(other.anonymousId, _this.anonymousId) || other.anonymousId == _this.anonymousId)&&(identical(other.tracked, _this.tracked) || other.tracked == _this.tracked)&&(identical(other.pending, _this.pending) || other.pending == _this.pending)&&(identical(other.sending, _this.sending) || other.sending == _this.sending)&&(identical(other.sent, _this.sent) || other.sent == _this.sent)&&(identical(other.failed, _this.failed) || other.failed == _this.failed)&&(identical(other.dropped, _this.dropped) || other.dropped == _this.dropped)&&(identical(other.rejected, _this.rejected) || other.rejected == _this.rejected)&&(identical(other.userId, _this.userId) || other.userId == _this.userId)&&(identical(other.nextRetryAt, _this.nextRetryAt) || other.nextRetryAt == _this.nextRetryAt)&&(identical(other.lastUpload, _this.lastUpload) || other.lastUpload == _this.lastUpload)&&(identical(other.uploading, _this.uploading) || other.uploading == _this.uploading));
 }
 
 
 @override
 int get hashCode {
   final _this = this as QueueStats;
-  return Object.hash(runtimeType,_this.anonymousId,_this.tracked,_this.pending,_this.sending,_this.sent,_this.failed,_this.dropped,_this.rejected,_this.userId);
+  return Object.hash(runtimeType,_this.anonymousId,_this.tracked,_this.pending,_this.sending,_this.sent,_this.failed,_this.dropped,_this.rejected,_this.userId,_this.nextRetryAt,_this.lastUpload,_this.uploading);
 }
 
 @override
 String toString() {
   final _this = this as QueueStats;
-  return 'QueueStats(anonymousId: ${_this.anonymousId}, tracked: ${_this.tracked}, pending: ${_this.pending}, sending: ${_this.sending}, sent: ${_this.sent}, failed: ${_this.failed}, dropped: ${_this.dropped}, rejected: ${_this.rejected}, userId: ${_this.userId})';
+  return 'QueueStats(anonymousId: ${_this.anonymousId}, tracked: ${_this.tracked}, pending: ${_this.pending}, sending: ${_this.sending}, sent: ${_this.sent}, failed: ${_this.failed}, dropped: ${_this.dropped}, rejected: ${_this.rejected}, userId: ${_this.userId}, nextRetryAt: ${_this.nextRetryAt}, lastUpload: ${_this.lastUpload}, uploading: ${_this.uploading})';
 }
 
 
@@ -51,11 +54,11 @@ abstract mixin class $QueueStatsCopyWith<$Res>  {
   factory $QueueStatsCopyWith(QueueStats value, $Res Function(QueueStats) _then) = _$QueueStatsCopyWithImpl;
 @useResult
 $Res call({
- String anonymousId, int tracked, int pending, int sending, int sent, int failed, int dropped, int rejected, String? userId
+ String anonymousId, int tracked, int pending, int sending, int sent, int failed, int dropped, int rejected, String? userId, DateTime? nextRetryAt, UploadRun? lastUpload, bool uploading
 });
 
 
-
+$UploadRunCopyWith<$Res>? get lastUpload;
 
 }
 /// @nodoc
@@ -68,7 +71,7 @@ class _$QueueStatsCopyWithImpl<$Res>
 
 /// Create a copy of QueueStats
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? anonymousId = null,Object? tracked = null,Object? pending = null,Object? sending = null,Object? sent = null,Object? failed = null,Object? dropped = null,Object? rejected = null,Object? userId = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? anonymousId = null,Object? tracked = null,Object? pending = null,Object? sending = null,Object? sent = null,Object? failed = null,Object? dropped = null,Object? rejected = null,Object? userId = freezed,Object? nextRetryAt = freezed,Object? lastUpload = freezed,Object? uploading = null,}) {
   return _then(QueueStats(
 anonymousId: null == anonymousId ? _self.anonymousId : anonymousId // ignore: cast_nullable_to_non_nullable
 as String,tracked: null == tracked ? _self.tracked : tracked // ignore: cast_nullable_to_non_nullable
@@ -79,10 +82,25 @@ as int,failed: null == failed ? _self.failed : failed // ignore: cast_nullable_t
 as int,dropped: null == dropped ? _self.dropped : dropped // ignore: cast_nullable_to_non_nullable
 as int,rejected: null == rejected ? _self.rejected : rejected // ignore: cast_nullable_to_non_nullable
 as int,userId: freezed == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,nextRetryAt: freezed == nextRetryAt ? _self.nextRetryAt : nextRetryAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,lastUpload: freezed == lastUpload ? _self.lastUpload : lastUpload // ignore: cast_nullable_to_non_nullable
+as UploadRun?,uploading: null == uploading ? _self.uploading : uploading // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
+/// Create a copy of QueueStats
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UploadRunCopyWith<$Res>? get lastUpload {
+    if (_self.lastUpload == null) {
+    return null;
+  }
 
+  return $UploadRunCopyWith<$Res>(_self.lastUpload!, (value) {
+    return _then(_self.copyWith(lastUpload: value));
+  });
+}
 }
 
 
@@ -164,10 +182,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String anonymousId,  int tracked,  int pending,  int sending,  int sent,  int failed,  int dropped,  int rejected,  String? userId)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String anonymousId,  int tracked,  int pending,  int sending,  int sent,  int failed,  int dropped,  int rejected,  String? userId,  DateTime? nextRetryAt,  UploadRun? lastUpload,  bool uploading)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _QueueStats() when $default != null:
-return $default(_that.anonymousId,_that.tracked,_that.pending,_that.sending,_that.sent,_that.failed,_that.dropped,_that.rejected,_that.userId);case _:
+return $default(_that.anonymousId,_that.tracked,_that.pending,_that.sending,_that.sent,_that.failed,_that.dropped,_that.rejected,_that.userId,_that.nextRetryAt,_that.lastUpload,_that.uploading);case _:
   return orElse();
 
 }
@@ -185,10 +203,10 @@ return $default(_that.anonymousId,_that.tracked,_that.pending,_that.sending,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String anonymousId,  int tracked,  int pending,  int sending,  int sent,  int failed,  int dropped,  int rejected,  String? userId)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String anonymousId,  int tracked,  int pending,  int sending,  int sent,  int failed,  int dropped,  int rejected,  String? userId,  DateTime? nextRetryAt,  UploadRun? lastUpload,  bool uploading)  $default,) {final _that = this;
 switch (_that) {
 case _QueueStats():
-return $default(_that.anonymousId,_that.tracked,_that.pending,_that.sending,_that.sent,_that.failed,_that.dropped,_that.rejected,_that.userId);case _:
+return $default(_that.anonymousId,_that.tracked,_that.pending,_that.sending,_that.sent,_that.failed,_that.dropped,_that.rejected,_that.userId,_that.nextRetryAt,_that.lastUpload,_that.uploading);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -205,10 +223,10 @@ return $default(_that.anonymousId,_that.tracked,_that.pending,_that.sending,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String anonymousId,  int tracked,  int pending,  int sending,  int sent,  int failed,  int dropped,  int rejected,  String? userId)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String anonymousId,  int tracked,  int pending,  int sending,  int sent,  int failed,  int dropped,  int rejected,  String? userId,  DateTime? nextRetryAt,  UploadRun? lastUpload,  bool uploading)?  $default,) {final _that = this;
 switch (_that) {
 case _QueueStats() when $default != null:
-return $default(_that.anonymousId,_that.tracked,_that.pending,_that.sending,_that.sent,_that.failed,_that.dropped,_that.rejected,_that.userId);case _:
+return $default(_that.anonymousId,_that.tracked,_that.pending,_that.sending,_that.sent,_that.failed,_that.dropped,_that.rejected,_that.userId,_that.nextRetryAt,_that.lastUpload,_that.uploading);case _:
   return null;
 
 }
@@ -220,7 +238,7 @@ return $default(_that.anonymousId,_that.tracked,_that.pending,_that.sending,_tha
 
 
 class _QueueStats implements QueueStats {
-  const _QueueStats({required this.anonymousId, this.tracked = 0, this.pending = 0, this.sending = 0, this.sent = 0, this.failed = 0, this.dropped = 0, this.rejected = 0, this.userId});
+  const _QueueStats({required this.anonymousId, this.tracked = 0, this.pending = 0, this.sending = 0, this.sent = 0, this.failed = 0, this.dropped = 0, this.rejected = 0, this.userId, this.nextRetryAt, this.lastUpload, this.uploading = false});
   
 
 @override final  String anonymousId;
@@ -232,6 +250,12 @@ class _QueueStats implements QueueStats {
 @override@JsonKey() final  int dropped;
 @override@JsonKey() final  int rejected;
 @override final  String? userId;
+/// When the earliest retry is due, if an event waits for one.
+@override final  DateTime? nextRetryAt;
+/// The newest upload run, if any.
+@override final  UploadRun? lastUpload;
+/// Whether an upload is running now.
+@override@JsonKey() final  bool uploading;
 
 /// Create a copy of QueueStats
 /// with the given fields replaced by the non-null parameter values.
@@ -243,18 +267,18 @@ _$QueueStatsCopyWith<_QueueStats> get copyWith => __$QueueStatsCopyWithImpl<_Que
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _QueueStats&&(identical(other.anonymousId, anonymousId) || other.anonymousId == anonymousId)&&(identical(other.tracked, tracked) || other.tracked == tracked)&&(identical(other.pending, pending) || other.pending == pending)&&(identical(other.sending, sending) || other.sending == sending)&&(identical(other.sent, sent) || other.sent == sent)&&(identical(other.failed, failed) || other.failed == failed)&&(identical(other.dropped, dropped) || other.dropped == dropped)&&(identical(other.rejected, rejected) || other.rejected == rejected)&&(identical(other.userId, userId) || other.userId == userId));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _QueueStats&&(identical(other.anonymousId, anonymousId) || other.anonymousId == anonymousId)&&(identical(other.tracked, tracked) || other.tracked == tracked)&&(identical(other.pending, pending) || other.pending == pending)&&(identical(other.sending, sending) || other.sending == sending)&&(identical(other.sent, sent) || other.sent == sent)&&(identical(other.failed, failed) || other.failed == failed)&&(identical(other.dropped, dropped) || other.dropped == dropped)&&(identical(other.rejected, rejected) || other.rejected == rejected)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.nextRetryAt, nextRetryAt) || other.nextRetryAt == nextRetryAt)&&(identical(other.lastUpload, lastUpload) || other.lastUpload == lastUpload)&&(identical(other.uploading, uploading) || other.uploading == uploading));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,anonymousId,tracked,pending,sending,sent,failed,dropped,rejected,userId);
+    return Object.hash(runtimeType,anonymousId,tracked,pending,sending,sent,failed,dropped,rejected,userId,nextRetryAt,lastUpload,uploading);
 }
 
 @override
 String toString() {
-    return 'QueueStats(anonymousId: $anonymousId, tracked: $tracked, pending: $pending, sending: $sending, sent: $sent, failed: $failed, dropped: $dropped, rejected: $rejected, userId: $userId)';
+    return 'QueueStats(anonymousId: $anonymousId, tracked: $tracked, pending: $pending, sending: $sending, sent: $sent, failed: $failed, dropped: $dropped, rejected: $rejected, userId: $userId, nextRetryAt: $nextRetryAt, lastUpload: $lastUpload, uploading: $uploading)';
 }
 
 
@@ -265,11 +289,11 @@ abstract mixin class _$QueueStatsCopyWith<$Res> implements $QueueStatsCopyWith<$
   factory _$QueueStatsCopyWith(_QueueStats value, $Res Function(_QueueStats) _then) = __$QueueStatsCopyWithImpl;
 @override @useResult
 $Res call({
- String anonymousId, int tracked, int pending, int sending, int sent, int failed, int dropped, int rejected, String? userId
+ String anonymousId, int tracked, int pending, int sending, int sent, int failed, int dropped, int rejected, String? userId, DateTime? nextRetryAt, UploadRun? lastUpload, bool uploading
 });
 
 
-
+@override $UploadRunCopyWith<$Res>? get lastUpload;
 
 }
 /// @nodoc
@@ -282,7 +306,7 @@ class __$QueueStatsCopyWithImpl<$Res>
 
 /// Create a copy of QueueStats
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? anonymousId = null,Object? tracked = null,Object? pending = null,Object? sending = null,Object? sent = null,Object? failed = null,Object? dropped = null,Object? rejected = null,Object? userId = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? anonymousId = null,Object? tracked = null,Object? pending = null,Object? sending = null,Object? sent = null,Object? failed = null,Object? dropped = null,Object? rejected = null,Object? userId = freezed,Object? nextRetryAt = freezed,Object? lastUpload = freezed,Object? uploading = null,}) {
   return _then(_QueueStats(
 anonymousId: null == anonymousId ? _self.anonymousId : anonymousId // ignore: cast_nullable_to_non_nullable
 as String,tracked: null == tracked ? _self.tracked : tracked // ignore: cast_nullable_to_non_nullable
@@ -293,11 +317,26 @@ as int,failed: null == failed ? _self.failed : failed // ignore: cast_nullable_t
 as int,dropped: null == dropped ? _self.dropped : dropped // ignore: cast_nullable_to_non_nullable
 as int,rejected: null == rejected ? _self.rejected : rejected // ignore: cast_nullable_to_non_nullable
 as int,userId: freezed == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,nextRetryAt: freezed == nextRetryAt ? _self.nextRetryAt : nextRetryAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,lastUpload: freezed == lastUpload ? _self.lastUpload : lastUpload // ignore: cast_nullable_to_non_nullable
+as UploadRun?,uploading: null == uploading ? _self.uploading : uploading // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
+/// Create a copy of QueueStats
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UploadRunCopyWith<$Res>? get lastUpload {
+    if (_self.lastUpload == null) {
+    return null;
+  }
 
+  return $UploadRunCopyWith<$Res>(_self.lastUpload!, (value) {
+    return _then(_self.copyWith(lastUpload: value));
+  });
+}
 }
 
 // dart format on

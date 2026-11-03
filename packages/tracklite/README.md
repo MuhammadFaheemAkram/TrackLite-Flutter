@@ -9,8 +9,7 @@ A small analytics SDK for Flutter apps, built to show how an SDK is designed:
 
 It talks to a fake analytics server: this is a learning project, not a hosted service.
 
-> **Status: 0.4.0: stored, uploaded, retried, in the background too.**
-> The debug tools and screen tracking come in 0.5.0.
+> **Status: 0.5.0: stored, uploaded, retried, in the background; with debug tools and screen tracking.**
 > See the [repository](https://github.com/MuhammadFaheemAkram/TrackLite-Flutter) for the plan, the sample app and the design docs.
 
 ## Usage
@@ -119,13 +118,26 @@ await TrackLite.initialize(
 );
 ```
 
+## Screen tracking
+
+```dart
+MaterialApp(navigatorObservers: [TrackLiteNavigatorObserver()]);
+// go_router: GoRoute(name: 'product', …) and the route's `observers`.
+```
+
+It tracks `screen_opened {screen: <route name>}` for named page routes that are pushed, popped back to or replaced; never their arguments. It skips a navigator's **first** route (a tab, the app's home): switching to an open tab is no navigation, so track those where they're shown.
+
 ## Debug tools
 
 ```dart
 TrackLite.debug.watchStats().listen((stats) {
-  // stats.pending, .sent, .failed, .dropped, .rejected, .tracked,
-  // stats.userId, stats.anonymousId
+  // counts: stats.pending, .sending, .sent, .failed, .dropped, .rejected, .tracked
+  // identity: stats.userId, stats.anonymousId
+  // now: stats.nextRetryAt, stats.lastUpload, stats.isOnline, stats.isUploading
 });
+TrackLite.debug.watchRecentEvents();   // the newest events, any status
+TrackLite.debug.watchUploads();        // the upload log (UploadRecord)
+await TrackLite.debug.retryFailed();   // failed events back in the queue
 ```
 
 ## Testing your app

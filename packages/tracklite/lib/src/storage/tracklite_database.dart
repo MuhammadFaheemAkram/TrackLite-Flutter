@@ -75,9 +75,13 @@ class TrackLiteDatabase extends _$TrackLiteDatabase {
       (SELECT value FROM meta WHERE name = 'dropped_total') AS dropped,
       (SELECT value FROM meta WHERE name = 'rejected_total') AS rejected,
       (SELECT value FROM meta WHERE name = 'user_id') AS user_id,
-      (SELECT value FROM meta WHERE name = 'anonymous_id') AS anonymous_id
+      (SELECT value FROM meta WHERE name = 'anonymous_id') AS anonymous_id,
+      (SELECT next_attempt_at FROM events
+        WHERE status = 'pending' AND next_attempt_at IS NOT NULL
+        ORDER BY julianday(next_attempt_at) LIMIT 1) AS next_retry,
+      (SELECT id FROM uploads ORDER BY id DESC LIMIT 1) AS last_upload
     ''',
-    readsFrom: {events, metaEntries},
+    readsFrom: {events, metaEntries, uploads},
   ).watchSingle();
 }
 

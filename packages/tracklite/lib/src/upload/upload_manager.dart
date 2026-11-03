@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart';
@@ -101,13 +103,25 @@ final class UploadManager {
   Future<FlushResult> upload(
     UploadTrigger trigger, {
     bool ignoreBackoff = false,
-  }) => _running ??= _run(trigger, ignoreBackoff).whenComplete(() {
-    _running = null;
-  });
+  }) {
+    if (_running case final running?) return running;
+    _uploadingChanges.add(true);
+    return _running = _run(trigger, ignoreBackoff).whenComplete(() {
+      _running = null;
+      _uploadingChanges.add(false);
+    });
+  }
 
-  /// Completes once no run is going.
+  final _uploadingChanges = StreamController<bool>.broadcast();
+
+  /// Whether a run is going: now, then each start and end.
+  Stream<bool> watchUploading() =>
+      startWith(() => isUploading, _uploadingChanges.stream);
+
+  /// Completes once no run is going, then stops reporting.
   Future<void> close() async {
     await _running;
+    await _uploadingChanges.close();
   }
 
   DateTime _now() => _clock.now().toUtc();

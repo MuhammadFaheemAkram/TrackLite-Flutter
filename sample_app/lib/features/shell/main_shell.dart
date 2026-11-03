@@ -20,28 +20,52 @@ enum AppTab {
 /// [navigationShell] holds the tab navigators in an IndexedStack; this widget
 /// only decides which branch is visible. Each tab screen brings its own
 /// `Scaffold` and `AppBar`.
-class MainShell extends StatelessWidget {
-  const MainShell({super.key, required this.navigationShell});
+///
+/// It also says when a tab's screen is shown ([onTabShown]: at start and on
+/// every tap of the bar). Switching back to an open tab is no navigation at
+/// all, so no navigator observer could see it; screens pushed *inside* a tab
+/// are the SDK's navigator observer's.
+class MainShell extends StatefulWidget {
+  const MainShell({
+    super.key,
+    required this.navigationShell,
+    required this.onTabShown,
+  });
 
   final StatefulNavigationShell navigationShell;
+  final void Function(AppTab tab) onTabShown;
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  @override
+  void initState() {
+    super.initState();
+    widget.onTabShown(AppTab.values[widget.navigationShell.currentIndex]);
+  }
 
   // Tapping the tab that is already open returns it to its first screen
   // (Shop's list, from a product), as both platforms' tab bars do.
-  void _selectTab(int index) => navigationShell.goBranch(
-    index,
-    initialLocation: index == navigationShell.currentIndex,
-  );
+  void _selectTab(int index) {
+    widget.navigationShell.goBranch(
+      index,
+      initialLocation: index == widget.navigationShell.currentIndex,
+    );
+    widget.onTabShown(AppTab.values[index]);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: navigationShell,
+      body: widget.navigationShell,
       // The tab labels keep their size whatever the text setting, as the
       // platforms' own tab bars do. A long press shows the label in a
       // tooltip, and screen readers read it.
       bottomNavigationBar: MediaQuery.withNoTextScaling(
         child: NavigationBar(
-          selectedIndex: navigationShell.currentIndex,
+          selectedIndex: widget.navigationShell.currentIndex,
           onDestinationSelected: _selectTab,
           destinations: [
             for (final tab in AppTab.values)

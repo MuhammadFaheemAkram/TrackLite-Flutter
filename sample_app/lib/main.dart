@@ -14,7 +14,10 @@ Future<void> main() async {
   // The SDK starts before the first screen, as the README tells every host
   // app: events tracked from then on have somewhere to go.
   await TrackLite.initialize(
-    sampleTrackLiteConfig(networkMonitor: getIt<DemoNetworkMonitor>()),
+    sampleTrackLiteConfig(
+      networkMonitor: getIt<DemoNetworkMonitor>(),
+      transport: getIt<FakeAnalyticsServer>(),
+    ),
   );
   runApp(const TrackLiteSampleApp());
 }

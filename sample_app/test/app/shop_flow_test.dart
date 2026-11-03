@@ -16,7 +16,7 @@ void main() {
     await tester.tapAndSettle(find.text('Buy'));
 
     expect(find.text('Purchase tracked: Coffee beans'), findsOneWidget);
-    expect(analytics.events, [
+    expect(analytics.events.where((e) => e.event != 'screen_opened'), [
       const Tracked('purchase', {
         'product_id': 'coffee-beans',
         'price': 12.5,
@@ -32,7 +32,7 @@ void main() {
     await tester.tapAndSettle(find.text('Get started'));
     await tester.tapAndSettle(find.text('Share'));
 
-    expect(analytics.events, [
+    expect(analytics.events.where((e) => e.event != 'screen_opened'), [
       const Tracked('button_clicked', {'button': 'get_started'}),
       const Tracked('button_clicked', {'button': 'share'}),
     ]);

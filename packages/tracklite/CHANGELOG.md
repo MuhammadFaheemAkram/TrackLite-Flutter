@@ -1,3 +1,18 @@
+## 0.5.0
+
+- **Debug tools:**
+  - `watchRecentEvents()`: the newest events, any status;
+  - `watchUploads()`: the upload log, as `UploadRecord`s;
+  - `retryFailed()`: failed events back in the queue, as if new.
+- **`TrackLiteStats` also says:**
+  - when the next retry is due;
+  - the last upload;
+  - whether the SDK is online and uploading.
+
+  It updates when any of them changes.
+- **`TrackLiteNavigatorObserver`:** tracks `screen_opened {screen: <route name>}` for named page routes that are pushed, popped back to or replaced. It skips a navigator's first route, and never sends arguments.
+- **`FakeAnalyticsServer.watchStats()`:** the server's counts, live.
+
 ## 0.4.0
 
 - **Retries with backoff:**

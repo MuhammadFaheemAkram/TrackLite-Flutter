@@ -1,13 +1,26 @@
-import 'package:tracklite_sample/domain/analytics/flush_outcome.dart';
-import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'analytics_service.freezed.dart';
+
+/// Who the analytics events are about.
+@freezed
+abstract class AnalyticsIdentity with _$AnalyticsIdentity {
+  const factory AnalyticsIdentity({
+    required String anonymousId,
+
+    /// The signed-in user, if any.
+    String? userId,
+  }) = _AnalyticsIdentity;
+}
 
 /// What the app needs from analytics, in the app's own words.
 ///
 /// The app's code depends on this port, never on the SDK: the Cubits don't
-/// import `tracklite`. Only `TrackLiteAnalyticsService` (the adapter, in the
-/// data layer) does. Swapping the vendor, or using two, then changes one
-/// class; and tests pass a fake without starting an SDK. It's the lesson for
-/// any third-party SDK, analytics or not.
+/// import `tracklite`. Only the adapters (in the data layer) do. Swapping
+/// the vendor, or using two, then changes one class; and tests pass a fake
+/// without starting an SDK. It's the lesson for any third-party SDK,
+/// analytics or not. The Dashboard's tools are a port of their own,
+/// `AnalyticsDebug`: an everyday screen doesn't need them.
 abstract interface class AnalyticsService {
   /// Records that [event] happened, with its [properties] (`String`, `num`
   /// or `bool` values).
@@ -19,9 +32,6 @@ abstract interface class AnalyticsService {
   /// Stops tying events to a user (after signing out).
   void reset();
 
-  /// Sends what is waiting now, and says what happened.
-  Future<FlushOutcome> flush();
-
-  /// What the queue holds now, then after every change (the Dashboard).
-  Stream<QueueStats> watchQueue();
+  /// Who the events are about: now, then after every change.
+  Stream<AnalyticsIdentity> watchIdentity();
 }

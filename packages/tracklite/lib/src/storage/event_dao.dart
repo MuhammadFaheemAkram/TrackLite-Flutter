@@ -183,6 +183,25 @@ class EventDao extends DatabaseAccessor<TrackLiteDatabase>
           .map((row) => row.nextAttemptAt)
           .getSingleOrNull();
 
+  /// The newest events first (any status): now, then after every change.
+  Stream<List<EventRow>> watchNewest(int limit) =>
+      (select(events)
+            ..orderBy([(row) => OrderingTerm.desc(row.seq)])
+            ..limit(limit))
+          .watch();
+
+  /// Puts every `failed` event back to `pending`, as if new (no attempts, no
+  /// wait), and says how many.
+  Future<int> retryFailed() =>
+      (update(events)..where((row) => row.status.equals('failed'))).write(
+        const EventsCompanion(
+          status: Value('pending'),
+          attempts: Value(0),
+          nextAttemptAt: Value(null),
+          lastError: Value(null),
+        ),
+      );
+
   /// Events that could still be uploaded now or later: pending or sending.
   Future<int> waitingCount() {
     final count = events.seq.count();

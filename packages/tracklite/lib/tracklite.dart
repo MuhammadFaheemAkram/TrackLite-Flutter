@@ -24,6 +24,9 @@ export 'package:tracklite/src/model/flush_result.dart'
         Uploaded;
 export 'package:tracklite/src/model/tracklite_event.dart' show TrackLiteEvent;
 export 'package:tracklite/src/model/tracklite_stats.dart' show TrackLiteStats;
+export 'package:tracklite/src/model/upload_record.dart' show UploadRecord;
+export 'package:tracklite/src/navigation/tracklite_navigator_observer.dart'
+    show TrackLiteNavigatorObserver;
 export 'package:tracklite/src/network/analytics_transport.dart'
     show
         AnalyticsTransport,

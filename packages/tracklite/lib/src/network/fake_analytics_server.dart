@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:tracklite/src/connectivity/network_monitor.dart';
 import 'package:tracklite/src/network/analytics_transport.dart';
 
 /// What the fake server has seen.
@@ -90,6 +92,12 @@ class FakeAnalyticsServer implements AnalyticsTransport {
     failures: _failures,
   );
 
+  final _statsChanges = StreamController<FakeServerStats>.broadcast();
+
+  /// What it has seen: now, then after every request.
+  Stream<FakeServerStats> watchStats() =>
+      startWith(() => stats, _statsChanges.stream);
+
   /// Whether it has stored the event with [id].
   bool hasEvent(String id) => _seen.contains(id);
 
@@ -103,6 +111,8 @@ class FakeAnalyticsServer implements AnalyticsTransport {
     } on TransportException {
       _failures++;
       rethrow;
+    } finally {
+      _statsChanges.add(stats);
     }
   }
 

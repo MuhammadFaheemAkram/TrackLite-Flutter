@@ -5,14 +5,16 @@ import 'package:tracklite/tracklite.dart';
 ///
 /// - `debugMode` follows the build: debug builds log every SDK call,
 ///   release builds are silent.
-/// - No transport: the SDK's own fake server, with its demo latency and
-///   failure rate.
+/// - The [transport] is the SDK's fake server, made by the app so the
+///   Dashboard can set its failure rate and speed.
 /// - The [networkMonitor] is the sample's: the device's network plus the
 ///   Dashboard's "Device offline" switch.
 TrackLiteConfig sampleTrackLiteConfig({
   required NetworkMonitor networkMonitor,
+  required AnalyticsTransport transport,
 }) => TrackLiteConfig(
   apiKey: 'demo_key',
   debugMode: kDebugMode,
   networkMonitor: networkMonitor,
+  transport: transport,
 );

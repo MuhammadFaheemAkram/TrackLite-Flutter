@@ -73,6 +73,14 @@ void main() {
     final TrackLiteDebug debug = TrackLite.debug;
     final TrackLiteStats stats = await debug.watchStats().first;
     expect(stats.tracked, 2);
+    expect(stats.isOnline, isTrue);
+    final List<TrackLiteEvent> recent = await debug.watchRecentEvents().first;
+    expect(recent, hasLength(2));
+    final List<UploadRecord> uploads = await debug.watchUploads().first;
+    expect(uploads.first.outcome, 'uploaded');
+    expect(await debug.retryFailed(), 0);
+    expect(await server.watchStats().first, server.stats);
+    expect(TrackLiteNavigatorObserver(client: client), isNotNull);
     expect(TrackLite.earlyCallLimit, 100);
     final FlushResult background = await TrackLite.runBackgroundUpload();
     expect(describe(background), isNotEmpty);
@@ -131,6 +139,8 @@ const _exported = [
   'TrackLiteConfig',
   'TrackLiteDebug',
   'TrackLiteStats',
+  'UploadRecord',
+  'TrackLiteNavigatorObserver',
   'TrackLiteEvent',
   'EventStatus',
   'AnalyticsTransport',

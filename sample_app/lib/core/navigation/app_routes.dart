@@ -1,5 +1,8 @@
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:tracklite/tracklite.dart';
+import 'package:tracklite_sample/di/injection.dart';
+import 'package:tracklite_sample/domain/analytics/analytics_service.dart';
 import 'package:tracklite_sample/features/dashboard/dashboard_page.dart';
 import 'package:tracklite_sample/features/home/home_page.dart';
 import 'package:tracklite_sample/features/product/product_page.dart';
@@ -24,21 +27,26 @@ part 'app_routes.g.dart';
 @TypedStatefulShellRoute<MainShellRoute>(
   branches: [
     TypedStatefulShellBranch<HomeBranch>(
-      routes: [TypedGoRoute<HomeRoute>(path: '/home')],
+      routes: [TypedGoRoute<HomeRoute>(path: '/home', name: 'home')],
     ),
     TypedStatefulShellBranch<ShopBranch>(
       routes: [
         TypedGoRoute<ShopRoute>(
           path: '/shop',
-          routes: [TypedGoRoute<ProductRoute>(path: ':productId')],
+          name: 'shop',
+          routes: [
+            TypedGoRoute<ProductRoute>(path: ':productId', name: 'product'),
+          ],
         ),
       ],
     ),
     TypedStatefulShellBranch<ProfileBranch>(
-      routes: [TypedGoRoute<ProfileRoute>(path: '/profile')],
+      routes: [TypedGoRoute<ProfileRoute>(path: '/profile', name: 'profile')],
     ),
     TypedStatefulShellBranch<DashboardBranch>(
-      routes: [TypedGoRoute<DashboardRoute>(path: '/dashboard')],
+      routes: [
+        TypedGoRoute<DashboardRoute>(path: '/dashboard', name: 'dashboard'),
+      ],
     ),
   ],
 )
@@ -51,18 +59,31 @@ class MainShellRoute extends StatefulShellRouteData {
     GoRouterState state,
     StatefulNavigationShell navigationShell,
   ) {
-    return MainShell(navigationShell: navigationShell);
+    return MainShell(
+      navigationShell: navigationShell,
+      onTabShown: (tab) => getIt<AnalyticsService>().track(
+        'screen_opened',
+        properties: {'screen': tab.name},
+      ),
+    );
   }
 }
 
 // A named navigator key per tab makes each back stack addressable (and
-// readable in debugging tools).
+// readable in debugging tools). Each tab's navigator also has the SDK's
+// observer: it tracks the named screens pushed inside a tab (a product),
+// and Back to the one under it. A tab's first screen is the shell's to
+// report.
 
 class HomeBranch extends StatefulShellBranchData {
   const HomeBranch();
 
   static final GlobalKey<NavigatorState> $navigatorKey =
       GlobalKey<NavigatorState>(debugLabel: 'homeTab');
+
+  static final List<NavigatorObserver> $observers = [
+    TrackLiteNavigatorObserver(),
+  ];
 }
 
 class ShopBranch extends StatefulShellBranchData {
@@ -70,6 +91,10 @@ class ShopBranch extends StatefulShellBranchData {
 
   static final GlobalKey<NavigatorState> $navigatorKey =
       GlobalKey<NavigatorState>(debugLabel: 'shopTab');
+
+  static final List<NavigatorObserver> $observers = [
+    TrackLiteNavigatorObserver(),
+  ];
 }
 
 class ProfileBranch extends StatefulShellBranchData {
@@ -77,6 +102,10 @@ class ProfileBranch extends StatefulShellBranchData {
 
   static final GlobalKey<NavigatorState> $navigatorKey =
       GlobalKey<NavigatorState>(debugLabel: 'profileTab');
+
+  static final List<NavigatorObserver> $observers = [
+    TrackLiteNavigatorObserver(),
+  ];
 }
 
 class DashboardBranch extends StatefulShellBranchData {
@@ -84,6 +113,10 @@ class DashboardBranch extends StatefulShellBranchData {
 
   static final GlobalKey<NavigatorState> $navigatorKey =
       GlobalKey<NavigatorState>(debugLabel: 'dashboardTab');
+
+  static final List<NavigatorObserver> $observers = [
+    TrackLiteNavigatorObserver(),
+  ];
 }
 
 class HomeRoute extends GoRouteData with $HomeRoute {

@@ -38,21 +38,24 @@ late FakeNetworkMonitor testDevice;
 
 /// Builds the graph and starts the real SDK as `main()` does: on a fresh
 /// in-memory database (a widget test has no file system for it), with
-/// [testServer] as its backend, [testDevice] as the device's network, and no
+/// [testServer] as its backend (the one the Dashboard's demo controls
+/// turn), [testDevice] as the device's network, no timers, and no
 /// background scheduling (there is no `workmanager` in a test).
 Future<void> startSdk() {
   configureDependencies();
   testDevice = FakeNetworkMonitor();
+  testServer = FakeAnalyticsServer(latency: Duration.zero, failureRate: 0);
   getIt
     ..unregister<NetworkMonitor>(instanceName: 'device')
-    ..registerSingleton<NetworkMonitor>(testDevice, instanceName: 'device');
+    ..registerSingleton<NetworkMonitor>(testDevice, instanceName: 'device')
+    ..unregister<FakeAnalyticsServer>()
+    ..registerSingleton<FakeAnalyticsServer>(testServer);
   TrackLiteTesting.useInMemoryDatabase();
   TrackLiteTesting.disableTimers();
-  testServer = FakeAnalyticsServer(latency: Duration.zero, failureRate: 0);
   return TrackLite.initialize(
     TrackLiteConfig(
       apiKey: 'demo_key',
-      transport: testServer,
+      transport: getIt<FakeAnalyticsServer>(),
       networkMonitor: getIt<DemoNetworkMonitor>(),
       backgroundUploads: false,
     ),

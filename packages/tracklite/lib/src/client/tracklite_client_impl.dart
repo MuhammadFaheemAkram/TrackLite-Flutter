@@ -214,7 +214,11 @@ final class TrackLiteClientImpl implements TrackLiteClient {
   bool get isIdle => _recorder.isIdle;
 
   @override
-  TrackLiteDebug get debug => DatabaseDebug(database);
+  TrackLiteDebug get debug => DatabaseDebug(
+    database,
+    watchOnline: _monitor.watch,
+    watchUploading: _uploads.watchUploading,
+  );
 
   @override
   void track(String name, {Map<String, Object> properties = const {}}) =>

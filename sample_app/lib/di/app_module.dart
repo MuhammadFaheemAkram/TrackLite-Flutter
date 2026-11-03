@@ -14,6 +14,12 @@ abstract class AppModule {
   @lazySingleton
   TrackLiteClient get trackLite => TrackLite.instance;
 
+  /// The SDK's transport: its own fake server, created here so the
+  /// Dashboard's demo controls can turn its knobs (tests register an
+  /// instant, reliable one).
+  @lazySingleton
+  FakeAnalyticsServer server() => FakeAnalyticsServer();
+
   /// The device's real connectivity (tests register a fake under this
   /// name).
   @Named('device')

@@ -15,11 +15,17 @@ import 'package:injectable/injectable.dart' as _i526;
 import 'package:tracklite/tracklite.dart' as _i171;
 import 'package:tracklite_sample/data/analytics/demo_network_monitor.dart'
     as _i590;
+import 'package:tracklite_sample/data/analytics/fake_server_demo.dart' as _i765;
+import 'package:tracklite_sample/data/analytics/tracklite_analytics_debug.dart'
+    as _i1021;
 import 'package:tracklite_sample/data/analytics/tracklite_analytics_service.dart'
     as _i140;
 import 'package:tracklite_sample/di/app_module.dart' as _i602;
+import 'package:tracklite_sample/domain/analytics/analytics_debug.dart'
+    as _i417;
 import 'package:tracklite_sample/domain/analytics/analytics_service.dart'
     as _i23;
+import 'package:tracklite_sample/domain/demo/demo_backend.dart' as _i229;
 import 'package:tracklite_sample/domain/network/device_network.dart' as _i906;
 import 'package:tracklite_sample/domain/shop/product_catalog.dart' as _i21;
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_cubit.dart'
@@ -27,6 +33,8 @@ import 'package:tracklite_sample/features/dashboard/cubit/dashboard_cubit.dart'
 import 'package:tracklite_sample/features/home/cubit/home_cubit.dart' as _i915;
 import 'package:tracklite_sample/features/product/cubit/product_cubit.dart'
     as _i601;
+import 'package:tracklite_sample/features/profile/cubit/profile_cubit.dart'
+    as _i958;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
@@ -37,10 +45,17 @@ extension GetItInjectableX on _i174.GetIt {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     final appModule = _$AppModule();
     gh.lazySingleton<_i171.TrackLiteClient>(() => appModule.trackLite);
+    gh.lazySingleton<_i171.FakeAnalyticsServer>(() => appModule.server());
     gh.lazySingleton<_i21.ProductCatalog>(() => const _i21.ProductCatalog());
     gh.lazySingleton<_i171.NetworkMonitor>(
       () => appModule.deviceMonitor(),
       instanceName: 'device',
+    );
+    gh.lazySingleton<_i229.DemoBackend>(
+      () => _i765.FakeServerDemo(gh<_i171.FakeAnalyticsServer>()),
+    );
+    gh.lazySingleton<_i417.AnalyticsDebug>(
+      () => _i1021.TrackLiteAnalyticsDebug(gh<_i171.TrackLiteClient>()),
     );
     gh.lazySingleton<_i23.AnalyticsService>(
       () => _i140.TrackLiteAnalyticsService(gh<_i171.TrackLiteClient>()),
@@ -52,6 +67,9 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.factory<_i915.HomeCubit>(
       () => _i915.HomeCubit(gh<_i23.AnalyticsService>()),
+    );
+    gh.factory<_i958.ProfileCubit>(
+      () => _i958.ProfileCubit(gh<_i23.AnalyticsService>()),
     );
     gh.factoryParam<_i601.ProductCubit, String, dynamic>(
       (productId, _) => _i601.ProductCubit(
@@ -65,8 +83,10 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.factory<_i352.DashboardCubit>(
       () => _i352.DashboardCubit(
+        gh<_i417.AnalyticsDebug>(),
         gh<_i23.AnalyticsService>(),
         gh<_i906.DeviceNetwork>(),
+        gh<_i229.DemoBackend>(),
       ),
     );
     return this;

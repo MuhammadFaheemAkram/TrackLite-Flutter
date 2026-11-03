@@ -354,7 +354,11 @@ void main() {
     expect(rows, hasLength(1));
     expect(await meta(MetaKeys.sentTotal), '3');
     // The stats count every event ever sent, not the rows still kept.
-    final stats = await DatabaseDebug(db).watchStats().first;
+    final stats = await DatabaseDebug(
+      db,
+      watchOnline: () => Stream.value(true),
+      watchUploading: () => Stream.value(false),
+    ).watchStats().first;
     expect(stats.sent, 3);
   });
 

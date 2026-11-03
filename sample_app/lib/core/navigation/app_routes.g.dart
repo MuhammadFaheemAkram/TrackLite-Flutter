@@ -15,9 +15,11 @@ RouteBase get $mainShellRoute => StatefulShellRouteData.$route(
   branches: [
     StatefulShellBranchData.$branch(
       navigatorKey: HomeBranch.$navigatorKey,
+      observers: HomeBranch.$observers,
       routes: [
         GoRouteData.$route(
           path: '/home',
+          name: 'home',
           hasOverriddenOnExit: false,
           factory: $HomeRoute._fromState,
         ),
@@ -25,14 +27,17 @@ RouteBase get $mainShellRoute => StatefulShellRouteData.$route(
     ),
     StatefulShellBranchData.$branch(
       navigatorKey: ShopBranch.$navigatorKey,
+      observers: ShopBranch.$observers,
       routes: [
         GoRouteData.$route(
           path: '/shop',
+          name: 'shop',
           hasOverriddenOnExit: false,
           factory: $ShopRoute._fromState,
           routes: [
             GoRouteData.$route(
               path: ':productId',
+              name: 'product',
               hasOverriddenOnExit: false,
               factory: $ProductRoute._fromState,
             ),
@@ -42,9 +47,11 @@ RouteBase get $mainShellRoute => StatefulShellRouteData.$route(
     ),
     StatefulShellBranchData.$branch(
       navigatorKey: ProfileBranch.$navigatorKey,
+      observers: ProfileBranch.$observers,
       routes: [
         GoRouteData.$route(
           path: '/profile',
+          name: 'profile',
           hasOverriddenOnExit: false,
           factory: $ProfileRoute._fromState,
         ),
@@ -52,9 +59,11 @@ RouteBase get $mainShellRoute => StatefulShellRouteData.$route(
     ),
     StatefulShellBranchData.$branch(
       navigatorKey: DashboardBranch.$navigatorKey,
+      observers: DashboardBranch.$observers,
       routes: [
         GoRouteData.$route(
           path: '/dashboard',
+          name: 'dashboard',
           hasOverriddenOnExit: false,
           factory: $DashboardRoute._fromState,
         ),

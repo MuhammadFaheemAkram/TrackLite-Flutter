@@ -47,8 +47,8 @@ The SDK is built in **strict, reviewable phases**. Each phase ends with:
 | 2 | Event storage: drift, the queue, validation, the anonymous id, `track()` stores events | ✅ Done |
 | 3 | The upload pipeline: the fake server, batching, statuses, at least once | ✅ Done |
 | 4 | Retries and background uploads: backoff, the network monitor, the triggers, `workmanager` | ✅ Done |
-| 5 | The debug dashboard and SDK tools: identity, the debug surface, screen tracking | ⏳ Next |
-| 6 | Documentation & CI | |
+| 5 | The debug dashboard and SDK tools: identity, the debug surface, screen tracking | ✅ Done |
+| 6 | Documentation & CI | ⏳ Next |
 
 ---
 
@@ -80,7 +80,8 @@ The public API is one library, [`package:tracklite/tracklite.dart`](packages/tra
 | `TrackLiteClient` | The same calls as an interface, for apps with dependency injection (and their fakes) |
 | `TrackLiteConfig` | The API key and the options, with their rules checked at `initialize` |
 | `TrackLiteEvent`, `EventStatus` | An event as stored, and where it is: `pending`, `sending`, `sent`, `failed` |
-| `TrackLiteDebug`, `TrackLiteStats` | The debug tools (`TrackLite.debug.watchStats()`): the queue's counts, the totals, the ids |
+| `TrackLiteDebug`, `TrackLiteStats`, `UploadRecord` | The debug tools (`TrackLite.debug`): live stats (counts, ids, next retry, last upload, online, uploading), recent events, the upload log, `retryFailed()` |
+| `TrackLiteNavigatorObserver` | Screen tracking: `screen_opened` for named pages pushed, popped back to or replaced |
 | `AnalyticsTransport`, `UploadBatch`, `UploadResponse` | The network boundary: set `TrackLiteConfig.transport` to send to a real backend |
 | `TransportException` (`ServerUnreachable`, `ServerFailure`, `ApiKeyRejected`, `RequestRejected`) | Why an upload failed; the kind decides what happens to the batch |
 | `FakeAnalyticsServer`, `FakeServerStats` | The default transport: latency, a failure rate, an API key check, deduplication by event id |
@@ -132,7 +133,7 @@ Everything else is in `lib/src/`, marked `@internal`, and out of reach.
   - **Demo controls:** Device offline, the server's failure rate, its latency.
 - ♿ **Accessible:** dark mode and large text on every screen; never color alone. A test tour grows with the app and checks both.
 
-After Phase 4, Home's buttons and Buy store their events through the app's own `AnalyticsService` port. The **Dashboard shows the queue live** (the counts by status, the totals, the ids), **Flush now** sends it to the fake server, and **Device offline** (the sample's own network monitor, given to the SDK) shows events waiting and the reconnect sending them. The SDK also uploads by itself, in the foreground and in the background.
+All of it is built (Phase 5): the screens track through the app's own `AnalyticsService` port, tabs are tracked by the shell and pages inside them by the SDK's navigator observer, Profile signs in and out, and the Dashboard shows the SDK's live state with the demo's controls (Device offline, the server's failure rate and speed).
 
 ---
 
@@ -243,31 +244,25 @@ fvm dart format --output=none --set-exit-if-changed .
 (cd packages/tracklite && fvm flutter pub publish --dry-run)
 ```
 
-**328 tests** after Phase 4:
-- **The SDK (191):** everything from Phase 3, plus:
-  - **the retry policy:** every step, the cap, overflow, its rules;
-  - **the error table:**
-    - a 5xx counted with its backoff, per event;
-    - `failed` past `maxRetries`;
-    - unreachable not counted;
-    - a 401 pausing;
-    - offline attempting nothing;
-  - **every trigger in fake time:**
-    - interval, threshold, paused, reconnect, retry due;
-    - offline and a rejected key blocking them;
-    - stop leaving no timer, a past retry not looping, the timers switch;
-  - **the monitors:** connectivity results, a failing plugin, changes right after listening;
-  - **the lifecycle:** Flutter's followed, and no binding falling back to the foreground;
-  - **background:**
-    - the saved config;
-    - the runner on a real file (uploads, respects backoff, offline, a broken database);
-    - **two uploaders on one database sending each event once;**
-    - registration on and off, and a failing platform;
-  - the client's automatic uploads (a full batch, a reconnect).
-- **The sample (137):** everything from Phase 3, plus:
-  - the demo monitor (the switch, the SDK's stream, the Dashboard's);
-  - the Network section;
-  - **the real SDK:** Device offline holding a purchase, and switching back on sending it with no tap.
+**384 tests** after Phase 5:
+- **The SDK (210):** everything from Phase 4, plus:
+  - **the debug tools:** recent events, the upload log, `retryFailed`;
+  - **the stats' live parts:** online, uploading, the next retry, the last upload; listened to more than once;
+  - **`combineLatest3`:** emits only once all three have a value, and each listener gets its own streams;
+  - **the navigator observer:** pushes, pops, replacements; first routes, popups and unnamed routes skipped; a host's names;
+  - the fake server's live stats.
+- **The sample (174):** everything from Phase 4, plus:
+  - the three adapters, field by field;
+  - the Dashboard's Cubit, view and words;
+  - Profile;
+  - the shell's tab tracking;
+  - **the real SDK end to end:**
+    - Flush, a failing server, Retry failed after the sixth server error;
+    - Track 100 events uploading by itself;
+    - Device offline and the reconnect;
+    - screen tracking (`shop`, `product`, `shop`);
+    - sign in and out;
+  - the accessibility tour (now with Profile signed in, and the Dashboard after failures).
 
 CI runs on every push to `main` and every pull request:
 - the FVM-pinned Flutter;
@@ -309,6 +304,7 @@ The full table (the queue, concurrency, background work, retries) grows with the
 - [Phase 2 — Event Storage Layer](docs/PHASE_2_SUMMARY.md)
 - [Phase 3 — Analytics Processing Pipeline](docs/PHASE_3_SUMMARY.md)
 - [Phase 4 — Retry + Background Uploads](docs/PHASE_4_SUMMARY.md)
+- [Phase 5 — Dashboard + SDK Tools](docs/PHASE_5_SUMMARY.md)
 - The SDK's own [README](packages/tracklite/README.md) and [CHANGELOG](packages/tracklite/CHANGELOG.md)
 
 ---

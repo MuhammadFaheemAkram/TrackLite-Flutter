@@ -28,9 +28,18 @@ class UploadDao extends DatabaseAccessor<TrackLiteDatabase>
   });
 
   /// The newest runs first.
-  Future<List<UploadRow>> newest({int limit = keep}) =>
-      (select(uploads)
-            ..orderBy([(row) => OrderingTerm.desc(row.id)])
-            ..limit(limit))
-          .get();
+  Future<List<UploadRow>> newest({int limit = keep}) => _newest(limit).get();
+
+  /// The newest runs first: now, then after every run.
+  Stream<List<UploadRow>> watchNewest({int limit = keep}) =>
+      _newest(limit).watch();
+
+  /// One run, by id.
+  Future<UploadRow?> byId(int id) =>
+      (select(uploads)..where((row) => row.id.equals(id))).getSingleOrNull();
+
+  SimpleSelectStatement<$UploadsTable, UploadRow> _newest(int limit) =>
+      select(uploads)
+        ..orderBy([(row) => OrderingTerm.desc(row.id)])
+        ..limit(limit);
 }

@@ -27,7 +27,22 @@ void main() {
           (tester) => tester.tapAndSettle(find.text('Buy')),
         ),
         ('Product not found', '/shop/teapot', null),
-        ('Profile', '/profile', null),
+        ('Profile, signed out', '/profile', null),
+        (
+          'Profile, signed in',
+          '/profile',
+          (tester) async {
+            await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+            await tester.pumpAndSettle();
+            await tester.enterText(find.byType(TextField), 'alex');
+            await tester.pump();
+            await tester.tap(find.text('Sign in'));
+            for (var i = 0; i < 3; i++) {
+              await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+              await tester.pumpAndSettle();
+            }
+          },
+        ),
         ('Dashboard, an empty queue', '/dashboard', null),
         (
           'Dashboard, after a flush',
@@ -49,6 +64,21 @@ void main() {
           },
         ),
         (
+          'Dashboard, after retries and failures',
+          '/dashboard',
+          (tester) async {
+            await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('100 %'));
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('Flush now'));
+            for (var i = 0; i < 3; i++) {
+              await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+              await tester.pumpAndSettle();
+            }
+          },
+        ),
+        (
           'Dashboard, with events',
           '/shop/grinder',
           (tester) async {
@@ -66,7 +96,7 @@ void main() {
           await pumpSample(tester, initialLocation: location);
           // Phone width, but tall enough to lay out every item of a long
           // list: the checks see only what is built.
-          tester.view.physicalSize = const Size(390 * 3, 3000 * 3);
+          tester.view.physicalSize = const Size(390 * 3, 5000 * 3);
           await tester.pumpAndSettle();
           await act?.call(tester);
           // Let the SDK's writes and the Dashboard's stream land.
