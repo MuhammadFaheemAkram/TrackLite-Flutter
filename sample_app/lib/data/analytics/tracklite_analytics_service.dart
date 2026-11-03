@@ -1,6 +1,7 @@
 import 'package:injectable/injectable.dart';
 import 'package:tracklite/tracklite.dart';
 import 'package:tracklite_sample/domain/analytics/analytics_service.dart';
+import 'package:tracklite_sample/domain/analytics/flush_outcome.dart';
 import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
 
 /// The adapter: the app's [AnalyticsService] port, implemented with the
@@ -24,6 +25,22 @@ class TrackLiteAnalyticsService implements AnalyticsService {
 
   @override
   void reset() => _client.clearUser();
+
+  @override
+  Future<FlushOutcome> flush() async => switch (await _client.flush()) {
+    Uploaded(:final events, :final batches) => FlushOutcome.sent(
+      events: events,
+      requests: batches,
+    ),
+    NothingToSend() => const FlushOutcome.nothingToSend(),
+    Offline() => const FlushOutcome.offline(),
+    Failed(:final reason, :final remaining) => FlushOutcome.failed(
+      reason: reason,
+      waiting: remaining,
+    ),
+    Unauthorized() => const FlushOutcome.keyRejected(),
+    NotInitialized() => const FlushOutcome.notRunning(),
+  };
 
   @override
   Stream<QueueStats> watchQueue() => _client.debug.watchStats().map(

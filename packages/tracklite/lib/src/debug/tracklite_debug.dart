@@ -28,7 +28,7 @@ final class DatabaseDebug implements TrackLiteDebug {
       tracked: counter('tracked'),
       pending: row.read<int>('pending'),
       sending: row.read<int>('sending'),
-      sent: row.read<int>('sent'),
+      sent: counter('sent'),
       failed: row.read<int>('failed'),
       dropped: counter('dropped'),
       rejected: counter('rejected'),

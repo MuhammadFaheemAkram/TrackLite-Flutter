@@ -5,6 +5,8 @@ import 'package:meta/meta.dart';
 import 'package:tracklite/src/storage/event_dao.dart';
 import 'package:tracklite/src/storage/meta_dao.dart';
 import 'package:tracklite/src/storage/tables.dart';
+import 'package:tracklite/src/storage/tracklite_database.steps.dart';
+import 'package:tracklite/src/storage/upload_dao.dart';
 
 part 'tracklite_database.g.dart';
 
@@ -12,7 +14,10 @@ part 'tracklite_database.g.dart';
 /// directory: never the host's database, so neither can break the other's
 /// schema or migrations.
 @internal
-@DriftDatabase(tables: [Events, MetaEntries], daos: [EventDao, MetaDao])
+@DriftDatabase(
+  tables: [Events, MetaEntries, Uploads],
+  daos: [EventDao, MetaDao, UploadDao],
+)
 class TrackLiteDatabase extends _$TrackLiteDatabase {
   TrackLiteDatabase(super.executor);
 
@@ -35,8 +40,16 @@ class TrackLiteDatabase extends _$TrackLiteDatabase {
   /// migration: an SDK's database upgrades in place on its users' devices.
   ///
   /// 1. The event queue and `meta`.
+  /// 2. The `uploads` log.
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: stepByStep(
+      from1To2: (m, schema) => m.createTable(schema.uploads),
+    ),
+  );
 
   /// The queue's counts by status and the running totals, as one row, in
   /// one query that watches both tables: every write to either re-runs it.
@@ -45,7 +58,7 @@ class TrackLiteDatabase extends _$TrackLiteDatabase {
     SELECT
       (SELECT COUNT(*) FROM events WHERE status = 'pending') AS pending,
       (SELECT COUNT(*) FROM events WHERE status = 'sending') AS sending,
-      (SELECT COUNT(*) FROM events WHERE status = 'sent') AS sent,
+      (SELECT value FROM meta WHERE name = 'sent_total') AS sent,
       (SELECT COUNT(*) FROM events WHERE status = 'failed') AS failed,
       (SELECT value FROM meta WHERE name = 'tracked_total') AS tracked,
       (SELECT value FROM meta WHERE name = 'dropped_total') AS dropped,

@@ -1,8 +1,10 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tracklite_sample/core/design_system/design_system.dart';
+import 'package:tracklite_sample/domain/analytics/flush_outcome.dart';
 import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_cubit.dart';
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_state.dart';
@@ -18,8 +20,16 @@ void main() {
 
   setUp(() => cubit = _MockDashboardCubit());
 
-  Future<void> pump(WidgetTester tester, DashboardState state) {
-    when(() => cubit.state).thenReturn(state);
+  Future<void> pump(
+    WidgetTester tester,
+    DashboardState state, {
+    Stream<DashboardState>? states,
+  }) {
+    whenListen(
+      cubit,
+      states ?? const Stream<DashboardState>.empty(),
+      initialState: state,
+    );
     tester.usePhoneSurface();
     return tester.pumpThemed(
       BlocProvider<DashboardCubit>.value(
@@ -56,7 +66,7 @@ void main() {
     for (final (label, value) in [
       ('Pending', '7'),
       ('Sending', '1'),
-      ('Sent', '3'),
+      ('Sent (ever)', '3'),
       ('Failed', '2'),
       ('Tracked', '12'),
       ('Dropped (queue full)', '4'),
@@ -86,5 +96,47 @@ void main() {
 
     expect(find.text('user_123'), findsOneWidget);
     expect(find.text('Anonymous'), findsNothing);
+  });
+
+  const ready = DashboardState(queue: QueueStats(anonymousId: 'a', pending: 3));
+
+  testWidgets('Flush now goes to the Cubit', (tester) async {
+    when(() => cubit.flush()).thenAnswer((_) async {});
+    await pump(tester, ready);
+
+    await tester.tap(find.text('Flush now'));
+
+    verify(() => cubit.flush()).called(1);
+  });
+
+  testWidgets('while flushing: "Sending…", and the button waits', (
+    tester,
+  ) async {
+    await pump(tester, ready.copyWith(flushing: true));
+
+    expect(find.text('Sending…'), findsOneWidget);
+    final button = tester.widget<ButtonStyleButton>(
+      find.ancestor(
+        of: find.text('Sending…'),
+        matching: find.bySubtype<ButtonStyleButton>(),
+      ),
+    );
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('a finished flush shows its outcome in a SnackBar', (
+    tester,
+  ) async {
+    final done = ready.copyWith(
+      lastFlush: const FlushOutcome.sent(events: 3, requests: 1),
+      flushSerial: 1,
+    );
+    await pump(tester, ready, states: Stream.value(done));
+    await tester.pump();
+
+    expect(
+      find.widgetWithText(SnackBar, 'Sent 3 events in 1 request.'),
+      findsOneWidget,
+    );
   });
 }

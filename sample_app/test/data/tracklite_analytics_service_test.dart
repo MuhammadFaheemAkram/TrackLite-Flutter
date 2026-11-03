@@ -1,12 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tracklite/tracklite.dart';
 import 'package:tracklite_sample/data/analytics/tracklite_analytics_service.dart';
+import 'package:tracklite_sample/domain/analytics/flush_outcome.dart';
 import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
 
 /// A host-side fake of the SDK's client: possible because the SDK exposes an
 /// interface, not only static calls.
 class _FakeClient implements TrackLiteClient {
   final calls = <String>[];
+  FlushResult flushResult = const NothingToSend();
 
   @override
   void track(String name, {Map<String, Object> properties = const {}}) =>
@@ -19,7 +21,7 @@ class _FakeClient implements TrackLiteClient {
   void clearUser() => calls.add('clearUser');
 
   @override
-  Future<FlushResult> flush() async => const NothingToSend();
+  Future<FlushResult> flush() async => flushResult;
 
   @override
   Future<void> shutdown() async {}
@@ -81,5 +83,28 @@ void main() {
         rejected: 5,
       ),
     );
+  });
+
+  group("flush: each of the SDK's results in the app's words", () {
+    for (final (result, outcome) in [
+      (
+        const Uploaded(events: 40, batches: 2),
+        const FlushOutcome.sent(events: 40, requests: 2),
+      ),
+      (const NothingToSend(), const FlushOutcome.nothingToSend()),
+      (const Offline(), const FlushOutcome.offline()),
+      (
+        const Failed(reason: 'server error 500', remaining: 7),
+        const FlushOutcome.failed(reason: 'server error 500', waiting: 7),
+      ),
+      (const Unauthorized(), const FlushOutcome.keyRejected()),
+      (const NotInitialized(), const FlushOutcome.notRunning()),
+    ]) {
+      test('$result', () async {
+        final client = _FakeClient()..flushResult = result;
+
+        expect(await TrackLiteAnalyticsService(client).flush(), outcome);
+      });
+    }
   });
 }

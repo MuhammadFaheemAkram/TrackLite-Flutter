@@ -5,6 +5,7 @@ import 'package:tracklite_sample/di/injection.dart';
 import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_cubit.dart';
 import 'package:tracklite_sample/features/dashboard/cubit/dashboard_state.dart';
+import 'package:tracklite_sample/features/dashboard/flush_words.dart';
 
 /// The Dashboard tab: the SDK's live state. Phase 2 shows the queue and
 /// the identity; uploads, retries and the demo controls come later.
@@ -27,10 +28,18 @@ class DashboardView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Dashboard')),
-      body: BlocBuilder<DashboardCubit, DashboardState>(
+      body: BlocConsumer<DashboardCubit, DashboardState>(
+        listenWhen: (before, after) => after.flushSerial != before.flushSerial,
+        listener: (context, state) {
+          final outcome = state.lastFlush;
+          if (outcome == null) return;
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(flushWords(outcome))));
+        },
         builder: (context, state) => switch (state.queue) {
           null => const LoadingView(message: 'Reading the queue…'),
-          final queue => _QueueView(queue),
+          final queue => _QueueView(queue, flushing: state.flushing),
         },
       ),
     );
@@ -38,9 +47,10 @@ class DashboardView extends StatelessWidget {
 }
 
 class _QueueView extends StatelessWidget {
-  const _QueueView(this.queue);
+  const _QueueView(this.queue, {required this.flushing});
 
   final QueueStats queue;
+  final bool flushing;
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +74,7 @@ class _QueueView extends StatelessWidget {
         ),
         StatRow(
           icon: Icons.cloud_done_outlined,
-          label: 'Sent',
+          label: 'Sent (ever)',
           value: '${queue.sent}',
           color: colors.sent,
         ),
@@ -75,13 +85,37 @@ class _QueueView extends StatelessWidget {
           color: colors.failed,
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.medium),
-          child: Text(
-            'Events are stored first and wait here. Uploading them arrives '
-            'with the pipeline.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.medium,
+            AppSpacing.xSmall,
+            AppSpacing.medium,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton.icon(
+                onPressed: flushing
+                    ? null
+                    : context.read<DashboardCubit>().flush,
+                icon: flushing
+                    ? const SizedBox.square(
+                        dimension: AppIconSize.small,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_outlined),
+                label: Text(flushing ? 'Sending…' : 'Flush now'),
+              ),
+              const SizedBox(height: AppSpacing.xSmall),
+              Text(
+                'Events are stored first and wait here. Flush now sends them '
+                'to the fake server, which takes a moment and fails about '
+                '1 request in 10.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ),
         const SectionHeader('Totals'),

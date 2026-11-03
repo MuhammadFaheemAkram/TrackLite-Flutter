@@ -1032,17 +1032,519 @@ class MetaEntriesCompanion extends UpdateCompanion<MetaRow> {
   }
 }
 
+class $UploadsTable extends Uploads with TableInfo<$UploadsTable, UploadRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UploadsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _triggerMeta = const VerificationMeta(
+    'trigger',
+  );
+  @override
+  late final GeneratedColumn<String> trigger = GeneratedColumn<String>(
+    'trigger',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _finishedAtMeta = const VerificationMeta(
+    'finishedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> finishedAt = GeneratedColumn<DateTime>(
+    'finished_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _outcomeMeta = const VerificationMeta(
+    'outcome',
+  );
+  @override
+  late final GeneratedColumn<String> outcome = GeneratedColumn<String>(
+    'outcome',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _batchesMeta = const VerificationMeta(
+    'batches',
+  );
+  @override
+  late final GeneratedColumn<int> batches = GeneratedColumn<int>(
+    'batches',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _eventsMeta = const VerificationMeta('events');
+  @override
+  late final GeneratedColumn<int> events = GeneratedColumn<int>(
+    'events',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _errorMeta = const VerificationMeta('error');
+  @override
+  late final GeneratedColumn<String> error = GeneratedColumn<String>(
+    'error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    trigger,
+    startedAt,
+    finishedAt,
+    outcome,
+    batches,
+    events,
+    error,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'uploads';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<UploadRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('trigger')) {
+      context.handle(
+        _triggerMeta,
+        trigger.isAcceptableOrUnknown(data['trigger']!, _triggerMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_triggerMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('finished_at')) {
+      context.handle(
+        _finishedAtMeta,
+        finishedAt.isAcceptableOrUnknown(data['finished_at']!, _finishedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_finishedAtMeta);
+    }
+    if (data.containsKey('outcome')) {
+      context.handle(
+        _outcomeMeta,
+        outcome.isAcceptableOrUnknown(data['outcome']!, _outcomeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_outcomeMeta);
+    }
+    if (data.containsKey('batches')) {
+      context.handle(
+        _batchesMeta,
+        batches.isAcceptableOrUnknown(data['batches']!, _batchesMeta),
+      );
+    }
+    if (data.containsKey('events')) {
+      context.handle(
+        _eventsMeta,
+        events.isAcceptableOrUnknown(data['events']!, _eventsMeta),
+      );
+    }
+    if (data.containsKey('error')) {
+      context.handle(
+        _errorMeta,
+        error.isAcceptableOrUnknown(data['error']!, _errorMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  UploadRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UploadRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      trigger: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trigger'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      )!,
+      finishedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}finished_at'],
+      )!,
+      outcome: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}outcome'],
+      )!,
+      batches: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}batches'],
+      )!,
+      events: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}events'],
+      )!,
+      error: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error'],
+      ),
+    );
+  }
+
+  @override
+  $UploadsTable createAlias(String alias) {
+    return $UploadsTable(attachedDatabase, alias);
+  }
+}
+
+class UploadRow extends DataClass implements Insertable<UploadRow> {
+  final int id;
+
+  /// What started it: `manual`, `interval`, `threshold`, …
+  final String trigger;
+  final DateTime startedAt;
+  final DateTime finishedAt;
+
+  /// `uploaded`, `nothing`, `offline`, `failed` or `unauthorized`.
+  final String outcome;
+  final int batches;
+  final int events;
+  final String? error;
+  const UploadRow({
+    required this.id,
+    required this.trigger,
+    required this.startedAt,
+    required this.finishedAt,
+    required this.outcome,
+    required this.batches,
+    required this.events,
+    this.error,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['trigger'] = Variable<String>(trigger);
+    map['started_at'] = Variable<DateTime>(startedAt);
+    map['finished_at'] = Variable<DateTime>(finishedAt);
+    map['outcome'] = Variable<String>(outcome);
+    map['batches'] = Variable<int>(batches);
+    map['events'] = Variable<int>(events);
+    if (!nullToAbsent || error != null) {
+      map['error'] = Variable<String>(error);
+    }
+    return map;
+  }
+
+  UploadsCompanion toCompanion(bool nullToAbsent) {
+    return UploadsCompanion(
+      id: Value(id),
+      trigger: Value(trigger),
+      startedAt: Value(startedAt),
+      finishedAt: Value(finishedAt),
+      outcome: Value(outcome),
+      batches: Value(batches),
+      events: Value(events),
+      error: error == null && nullToAbsent
+          ? const Value.absent()
+          : Value(error),
+    );
+  }
+
+  factory UploadRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UploadRow(
+      id: serializer.fromJson<int>(json['id']),
+      trigger: serializer.fromJson<String>(json['trigger']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      finishedAt: serializer.fromJson<DateTime>(json['finishedAt']),
+      outcome: serializer.fromJson<String>(json['outcome']),
+      batches: serializer.fromJson<int>(json['batches']),
+      events: serializer.fromJson<int>(json['events']),
+      error: serializer.fromJson<String?>(json['error']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'trigger': serializer.toJson<String>(trigger),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'finishedAt': serializer.toJson<DateTime>(finishedAt),
+      'outcome': serializer.toJson<String>(outcome),
+      'batches': serializer.toJson<int>(batches),
+      'events': serializer.toJson<int>(events),
+      'error': serializer.toJson<String?>(error),
+    };
+  }
+
+  UploadRow copyWith({
+    int? id,
+    String? trigger,
+    DateTime? startedAt,
+    DateTime? finishedAt,
+    String? outcome,
+    int? batches,
+    int? events,
+    Value<String?> error = const Value.absent(),
+  }) => UploadRow(
+    id: id ?? this.id,
+    trigger: trigger ?? this.trigger,
+    startedAt: startedAt ?? this.startedAt,
+    finishedAt: finishedAt ?? this.finishedAt,
+    outcome: outcome ?? this.outcome,
+    batches: batches ?? this.batches,
+    events: events ?? this.events,
+    error: error.present ? error.value : this.error,
+  );
+  UploadRow copyWithCompanion(UploadsCompanion data) {
+    return UploadRow(
+      id: data.id.present ? data.id.value : this.id,
+      trigger: data.trigger.present ? data.trigger.value : this.trigger,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      finishedAt: data.finishedAt.present
+          ? data.finishedAt.value
+          : this.finishedAt,
+      outcome: data.outcome.present ? data.outcome.value : this.outcome,
+      batches: data.batches.present ? data.batches.value : this.batches,
+      events: data.events.present ? data.events.value : this.events,
+      error: data.error.present ? data.error.value : this.error,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UploadRow(')
+          ..write('id: $id, ')
+          ..write('trigger: $trigger, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('finishedAt: $finishedAt, ')
+          ..write('outcome: $outcome, ')
+          ..write('batches: $batches, ')
+          ..write('events: $events, ')
+          ..write('error: $error')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    trigger,
+    startedAt,
+    finishedAt,
+    outcome,
+    batches,
+    events,
+    error,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UploadRow &&
+          other.id == this.id &&
+          other.trigger == this.trigger &&
+          other.startedAt == this.startedAt &&
+          other.finishedAt == this.finishedAt &&
+          other.outcome == this.outcome &&
+          other.batches == this.batches &&
+          other.events == this.events &&
+          other.error == this.error);
+}
+
+class UploadsCompanion extends UpdateCompanion<UploadRow> {
+  final Value<int> id;
+  final Value<String> trigger;
+  final Value<DateTime> startedAt;
+  final Value<DateTime> finishedAt;
+  final Value<String> outcome;
+  final Value<int> batches;
+  final Value<int> events;
+  final Value<String?> error;
+  const UploadsCompanion({
+    this.id = const Value.absent(),
+    this.trigger = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.finishedAt = const Value.absent(),
+    this.outcome = const Value.absent(),
+    this.batches = const Value.absent(),
+    this.events = const Value.absent(),
+    this.error = const Value.absent(),
+  });
+  UploadsCompanion.insert({
+    this.id = const Value.absent(),
+    required String trigger,
+    required DateTime startedAt,
+    required DateTime finishedAt,
+    required String outcome,
+    this.batches = const Value.absent(),
+    this.events = const Value.absent(),
+    this.error = const Value.absent(),
+  }) : trigger = Value(trigger),
+       startedAt = Value(startedAt),
+       finishedAt = Value(finishedAt),
+       outcome = Value(outcome);
+  static Insertable<UploadRow> custom({
+    Expression<int>? id,
+    Expression<String>? trigger,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? finishedAt,
+    Expression<String>? outcome,
+    Expression<int>? batches,
+    Expression<int>? events,
+    Expression<String>? error,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (trigger != null) 'trigger': trigger,
+      if (startedAt != null) 'started_at': startedAt,
+      if (finishedAt != null) 'finished_at': finishedAt,
+      if (outcome != null) 'outcome': outcome,
+      if (batches != null) 'batches': batches,
+      if (events != null) 'events': events,
+      if (error != null) 'error': error,
+    });
+  }
+
+  UploadsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? trigger,
+    Value<DateTime>? startedAt,
+    Value<DateTime>? finishedAt,
+    Value<String>? outcome,
+    Value<int>? batches,
+    Value<int>? events,
+    Value<String?>? error,
+  }) {
+    return UploadsCompanion(
+      id: id ?? this.id,
+      trigger: trigger ?? this.trigger,
+      startedAt: startedAt ?? this.startedAt,
+      finishedAt: finishedAt ?? this.finishedAt,
+      outcome: outcome ?? this.outcome,
+      batches: batches ?? this.batches,
+      events: events ?? this.events,
+      error: error ?? this.error,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (trigger.present) {
+      map['trigger'] = Variable<String>(trigger.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (finishedAt.present) {
+      map['finished_at'] = Variable<DateTime>(finishedAt.value);
+    }
+    if (outcome.present) {
+      map['outcome'] = Variable<String>(outcome.value);
+    }
+    if (batches.present) {
+      map['batches'] = Variable<int>(batches.value);
+    }
+    if (events.present) {
+      map['events'] = Variable<int>(events.value);
+    }
+    if (error.present) {
+      map['error'] = Variable<String>(error.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UploadsCompanion(')
+          ..write('id: $id, ')
+          ..write('trigger: $trigger, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('finishedAt: $finishedAt, ')
+          ..write('outcome: $outcome, ')
+          ..write('batches: $batches, ')
+          ..write('events: $events, ')
+          ..write('error: $error')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$TrackLiteDatabase extends GeneratedDatabase {
   _$TrackLiteDatabase(QueryExecutor e) : super(e);
   $TrackLiteDatabaseManager get managers => $TrackLiteDatabaseManager(this);
   late final $EventsTable events = $EventsTable(this);
   late final $MetaEntriesTable metaEntries = $MetaEntriesTable(this);
+  late final $UploadsTable uploads = $UploadsTable(this);
   late final Index eventsByStatus = Index(
     'events_by_status',
     'CREATE INDEX events_by_status ON events (status, seq)',
   );
   late final EventDao eventDao = EventDao(this as TrackLiteDatabase);
   late final MetaDao metaDao = MetaDao(this as TrackLiteDatabase);
+  late final UploadDao uploadDao = UploadDao(this as TrackLiteDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1050,6 +1552,7 @@ abstract class _$TrackLiteDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     events,
     metaEntries,
+    uploads,
     eventsByStatus,
   ];
   @override
@@ -1583,6 +2086,266 @@ typedef $$MetaEntriesTableProcessedTableManager =
       MetaRow,
       PrefetchHooks Function()
     >;
+typedef $$UploadsTableCreateCompanionBuilder = UploadsCompanion Function({
+  Value<int> id,
+  required String trigger,
+  required DateTime startedAt,
+  required DateTime finishedAt,
+  required String outcome,
+  Value<int> batches,
+  Value<int> events,
+  Value<String?> error,
+});
+typedef $$UploadsTableUpdateCompanionBuilder = UploadsCompanion Function({
+  Value<int> id,
+  Value<String> trigger,
+  Value<DateTime> startedAt,
+  Value<DateTime> finishedAt,
+  Value<String> outcome,
+  Value<int> batches,
+  Value<int> events,
+  Value<String?> error,
+});
+
+class $$UploadsTableFilterComposer
+    extends Composer<_$TrackLiteDatabase, $UploadsTable> {
+  $$UploadsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trigger => $composableBuilder(
+    column: $table.trigger,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get outcome => $composableBuilder(
+    column: $table.outcome,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get batches => $composableBuilder(
+    column: $table.batches,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get events => $composableBuilder(
+    column: $table.events,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$UploadsTableOrderingComposer
+    extends Composer<_$TrackLiteDatabase, $UploadsTable> {
+  $$UploadsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get trigger => $composableBuilder(
+    column: $table.trigger,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get outcome => $composableBuilder(
+    column: $table.outcome,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get batches => $composableBuilder(
+    column: $table.batches,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get events => $composableBuilder(
+    column: $table.events,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$UploadsTableAnnotationComposer
+    extends Composer<_$TrackLiteDatabase, $UploadsTable> {
+  $$UploadsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get trigger =>
+      $composableBuilder(column: $table.trigger, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get outcome =>
+      $composableBuilder(column: $table.outcome, builder: (column) => column);
+
+  GeneratedColumn<int> get batches =>
+      $composableBuilder(column: $table.batches, builder: (column) => column);
+
+  GeneratedColumn<int> get events =>
+      $composableBuilder(column: $table.events, builder: (column) => column);
+
+  GeneratedColumn<String> get error =>
+      $composableBuilder(column: $table.error, builder: (column) => column);
+}
+
+class $$UploadsTableTableManager
+    extends
+        RootTableManager<
+          _$TrackLiteDatabase,
+          $UploadsTable,
+          UploadRow,
+          $$UploadsTableFilterComposer,
+          $$UploadsTableOrderingComposer,
+          $$UploadsTableAnnotationComposer,
+          $$UploadsTableCreateCompanionBuilder,
+          $$UploadsTableUpdateCompanionBuilder,
+          (
+            UploadRow,
+            BaseReferences<_$TrackLiteDatabase, $UploadsTable, UploadRow>,
+          ),
+          UploadRow,
+          PrefetchHooks Function()
+        > {
+  $$UploadsTableTableManager(_$TrackLiteDatabase db, $UploadsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UploadsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UploadsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UploadsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> trigger = const Value.absent(),
+                Value<DateTime> startedAt = const Value.absent(),
+                Value<DateTime> finishedAt = const Value.absent(),
+                Value<String> outcome = const Value.absent(),
+                Value<int> batches = const Value.absent(),
+                Value<int> events = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+              }) => UploadsCompanion(
+                id: id,
+                trigger: trigger,
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                outcome: outcome,
+                batches: batches,
+                events: events,
+                error: error,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String trigger,
+                required DateTime startedAt,
+                required DateTime finishedAt,
+                required String outcome,
+                Value<int> batches = const Value.absent(),
+                Value<int> events = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+              }) => UploadsCompanion.insert(
+                id: id,
+                trigger: trigger,
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                outcome: outcome,
+                batches: batches,
+                events: events,
+                error: error,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$UploadsTable, UploadRow>(table),
+                  BaseReferences<_$TrackLiteDatabase, $UploadsTable, UploadRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$UploadsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$TrackLiteDatabase,
+      $UploadsTable,
+      UploadRow,
+      $$UploadsTableFilterComposer,
+      $$UploadsTableOrderingComposer,
+      $$UploadsTableAnnotationComposer,
+      $$UploadsTableCreateCompanionBuilder,
+      $$UploadsTableUpdateCompanionBuilder,
+      (
+        UploadRow,
+        BaseReferences<_$TrackLiteDatabase, $UploadsTable, UploadRow>,
+      ),
+      UploadRow,
+      PrefetchHooks Function()
+    >;
 
 class $TrackLiteDatabaseManager {
   final _$TrackLiteDatabase _db;
@@ -1591,4 +2354,6 @@ class $TrackLiteDatabaseManager {
       $$EventsTableTableManager(_db, _db.events);
   $$MetaEntriesTableTableManager get metaEntries =>
       $$MetaEntriesTableTableManager(_db, _db.metaEntries);
+  $$UploadsTableTableManager get uploads =>
+      $$UploadsTableTableManager(_db, _db.uploads);
 }

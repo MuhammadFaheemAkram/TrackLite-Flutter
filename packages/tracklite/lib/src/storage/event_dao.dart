@@ -40,4 +40,110 @@ class EventDao extends DatabaseAccessor<TrackLiteDatabase>
   /// Every event, oldest first (for tests and, later, the debug tools).
   Future<List<EventRow>> all() =>
       (select(events)..orderBy([(row) => OrderingTerm.asc(row.seq)])).get();
+
+  // The upload pipeline. Times are compared with `julianday`, never as text
+  // (conventions §11.60).
+
+  /// Puts `sending` events claimed before [before] back to `pending`: their
+  /// upload died (the app was killed mid-request, or another isolate was).
+  /// Without this, a crash would leave them `sending` forever.
+  Future<int> releaseExpiredClaims(DateTime before) => customUpdate(
+    "UPDATE events SET status = 'pending', claim_token = NULL, "
+    'claimed_at = NULL '
+    "WHERE status = 'sending' AND julianday(claimed_at) < julianday(?)",
+    variables: [Variable.withDateTime(before)],
+    updates: {events},
+    updateKind: UpdateKind.update,
+  );
+
+  /// Claims up to [limit] of the oldest due `pending` events for one upload,
+  /// marking them `sending` with [token], in one statement, and returns
+  /// them oldest first.
+  ///
+  /// One statement is what makes a claim safe: a second uploader (another
+  /// isolate) running the same query gets the *next* events, never these.
+  /// Due means never retried, or past its retry time; [ignoreBackoff] (an
+  /// explicit flush) claims retries early too.
+  Future<List<EventRow>> claim({
+    required String token,
+    required DateTime now,
+    required int limit,
+    bool ignoreBackoff = false,
+  }) async {
+    await customUpdate(
+      "UPDATE events SET status = 'sending', claim_token = ?1, "
+      'claimed_at = ?2 '
+      'WHERE seq IN (SELECT seq FROM events '
+      "WHERE status = 'pending' AND (?3 OR next_attempt_at IS NULL "
+      'OR julianday(next_attempt_at) <= julianday(?2)) '
+      'ORDER BY seq LIMIT ?4)',
+      variables: [
+        Variable.withString(token),
+        Variable.withDateTime(now),
+        Variable.withBool(ignoreBackoff),
+        Variable.withInt(limit),
+      ],
+      updates: {events},
+      updateKind: UpdateKind.update,
+    );
+    return (select(events)
+          ..where((row) => row.claimToken.equals(token))
+          ..orderBy([(row) => OrderingTerm.asc(row.seq)]))
+        .get();
+  }
+
+  /// The server accepted the claim: `sent`, at [at].
+  Future<int> markSent(String token, DateTime at) =>
+      (update(events)..where((row) => row.claimToken.equals(token))).write(
+        EventsCompanion(
+          status: const Value('sent'),
+          sentAt: Value(at),
+          claimToken: const Value(null),
+          claimedAt: const Value(null),
+          lastError: const Value(null),
+        ),
+      );
+
+  /// The upload failed in a way worth trying again: back to `pending`,
+  /// with why.
+  Future<int> release(String token, String error) =>
+      (update(events)..where((row) => row.claimToken.equals(token))).write(
+        EventsCompanion(
+          status: const Value('pending'),
+          claimToken: const Value(null),
+          claimedAt: const Value(null),
+          lastError: Value(error),
+        ),
+      );
+
+  /// The server refused these events for good: `failed`, with why.
+  Future<int> markFailed(String token, String error) =>
+      (update(events)..where((row) => row.claimToken.equals(token))).write(
+        EventsCompanion(
+          status: const Value('failed'),
+          claimToken: const Value(null),
+          claimedAt: const Value(null),
+          lastError: Value(error),
+        ),
+      );
+
+  /// Deletes `sent` events older than [before]: kept a while for the debug
+  /// tools, then gone (the total lives in a counter).
+  Future<int> pruneSent(DateTime before) => customUpdate(
+    "DELETE FROM events WHERE status = 'sent' "
+    'AND julianday(sent_at) < julianday(?)',
+    variables: [Variable.withDateTime(before)],
+    updates: {events},
+    updateKind: UpdateKind.delete,
+  );
+
+  /// Events that could still be uploaded now or later: pending or sending.
+  Future<int> waitingCount() {
+    final count = events.seq.count();
+    return (selectOnly(events)
+          ..addColumns([count])
+          ..where(events.status.isIn(['pending', 'sending'])))
+        .map((row) => row.read(count)!)
+        .getSingle();
+  }
 }

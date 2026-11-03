@@ -7,6 +7,7 @@ import 'package:tracklite/src/config/tracklite_config.dart';
 import 'package:tracklite/src/debug/tracklite_debug.dart';
 import 'package:tracklite/src/model/flush_result.dart';
 import 'package:tracklite/src/util/tracklite_logger.dart';
+import 'package:tracklite/src/version.dart';
 
 /// The SDK's front door: static calls, so any file can track an event
 /// without passing anything around.
@@ -25,7 +26,7 @@ import 'package:tracklite/src/util/tracklite_logger.dart';
 abstract final class TrackLite {
   /// This SDK's version, sent with every upload so the server knows which
   /// client produced an event.
-  static const String version = '0.2.0';
+  static const String version = trackLiteVersion;
 
   /// How many events tracked before [initialize] finishes are kept; past
   /// it, the oldest are dropped (and counted once the SDK starts).

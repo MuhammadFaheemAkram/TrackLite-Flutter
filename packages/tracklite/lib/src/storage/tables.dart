@@ -88,3 +88,35 @@ class MetaEntries extends Table {
   @override
   Set<Column<Object>> get primaryKey => {name};
 }
+
+/// One upload run: when, why it ran, and what came of it (schema v2). The
+/// newest 100 are kept.
+@internal
+@DataClassName('UploadRow')
+class Uploads extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// What started it: `manual`, `interval`, `threshold`, …
+  TextColumn get trigger => text()();
+
+  DateTimeColumn get startedAt => dateTime()();
+
+  DateTimeColumn get finishedAt => dateTime()();
+
+  /// `uploaded`, `nothing`, `offline`, `failed` or `unauthorized`.
+  TextColumn get outcome => text()();
+
+  IntColumn get batches => integer().withDefault(const Constant(0))();
+
+  IntColumn get events => integer().withDefault(const Constant(0))();
+
+  TextColumn get error => text().nullable()();
+
+  @override
+  List<String> get customConstraints => [
+    "CHECK (outcome IN ('uploaded', 'nothing', 'offline', 'failed', "
+        "'unauthorized'))",
+    'CHECK (batches >= 0 AND events >= 0)',
+    "CHECK (started_at GLOB '*Z' AND finished_at GLOB '*Z')",
+  ];
+}

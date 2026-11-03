@@ -157,4 +157,156 @@ void main() {
       expect(await db.metaDao.read('n'), '7');
     });
   });
+
+  group('claims', () {
+    Future<void> pending(List<String> ids, {DateTime? retryAt}) =>
+        db.eventDao.insertAll([
+          for (final id in ids)
+            event(id).copyWith(nextAttemptAt: Value(retryAt)),
+        ]);
+
+    test('take the oldest due, up to the limit, in one go', () async {
+      await pending(['a', 'b', 'c']);
+
+      final claimed = await db.eventDao.claim(
+        token: 't1',
+        now: testNow,
+        limit: 2,
+      );
+
+      expect(claimed.map((row) => (row.id, row.status, row.claimToken)), [
+        ('a', 'sending', 't1'),
+        ('b', 'sending', 't1'),
+      ]);
+      expect(claimed.first.claimedAt, testNow);
+    });
+
+    test('a second claim gets the rest, never the same events', () async {
+      await pending(['a', 'b', 'c']);
+      await db.eventDao.claim(token: 't1', now: testNow, limit: 2);
+
+      final second = await db.eventDao.claim(
+        token: 't2',
+        now: testNow,
+        limit: 2,
+      );
+
+      expect(second.map((row) => row.id), ['c']);
+      expect(
+        await db.eventDao.claim(token: 't3', now: testNow, limit: 2),
+        isEmpty,
+      );
+    });
+
+    test('a retry waits for its time, unless backoff is ignored', () async {
+      final later = testNow.add(const Duration(minutes: 1));
+      await pending(['waiting'], retryAt: later);
+      await pending(['due'], retryAt: testNow);
+
+      final auto = await db.eventDao.claim(token: 't1', now: testNow, limit: 9);
+      expect(auto.map((row) => row.id), ['due']);
+
+      final manual = await db.eventDao.claim(
+        token: 't2',
+        now: testNow,
+        limit: 9,
+        ignoreBackoff: true,
+      );
+      expect(manual.map((row) => row.id), ['waiting']);
+    });
+
+    test('an expired claim goes back to pending; a recent one stays', () async {
+      await pending(['old', 'recent']);
+      await db.eventDao.claim(
+        token: 'dead',
+        now: testNow.subtract(const Duration(minutes: 6)),
+        limit: 1,
+      );
+      await db.eventDao.claim(token: 'live', now: testNow, limit: 1);
+
+      final released = await db.eventDao.releaseExpiredClaims(
+        testNow.subtract(const Duration(minutes: 5)),
+      );
+
+      expect(released, 1);
+      final rows = await db.eventDao.all();
+      expect(rows.map((row) => (row.id, row.status, row.claimToken)), [
+        ('old', 'pending', null),
+        ('recent', 'sending', 'live'),
+      ]);
+    });
+
+    test('sent, released and failed claims leave no claim behind', () async {
+      await pending(['a', 'b', 'c']);
+      for (final (token, id) in [('t1', 'a'), ('t2', 'b'), ('t3', 'c')]) {
+        await db.eventDao.claim(token: token, now: testNow, limit: 1);
+        expect(
+          (await db.eventDao.all()).firstWhere((r) => r.id == id).status,
+          'sending',
+        );
+      }
+
+      expect(await db.eventDao.markSent('t1', testNow), 1);
+      expect(await db.eventDao.release('t2', 'server error 500'), 1);
+      expect(await db.eventDao.markFailed('t3', 'bad batch'), 1);
+
+      final rows = await db.eventDao.all();
+      expect(rows.map((r) => (r.status, r.claimToken, r.sentAt, r.lastError)), [
+        ('sent', null, testNow, null),
+        ('pending', null, null, 'server error 500'),
+        ('failed', null, null, 'bad batch'),
+      ]);
+      expect(await db.eventDao.waitingCount(), 1);
+    });
+
+    test('sent events older than the cut-off are pruned', () async {
+      await db.eventDao.insertAll([
+        event(
+          'old',
+          status: 'sent',
+          sentAt: Value(testNow.subtract(const Duration(hours: 25))),
+        ),
+        event('new', status: 'sent', sentAt: Value(testNow)),
+        event('waiting'),
+      ]);
+
+      expect(
+        await db.eventDao.pruneSent(
+          testNow.subtract(const Duration(hours: 24)),
+        ),
+        1,
+      );
+      expect((await db.eventDao.all()).map((r) => r.id), ['new', 'waiting']);
+    });
+  });
+
+  group('the upload log', () {
+    UploadsCompanion run(int n) => UploadsCompanion.insert(
+      trigger: 'manual',
+      startedAt: testNow,
+      finishedAt: testNow,
+      outcome: 'uploaded',
+      events: Value(n),
+    );
+
+    test('keeps the newest 100 runs', () async {
+      for (var i = 1; i <= 103; i++) {
+        await db.uploadDao.add(run(i));
+      }
+
+      // Every row, not `newest()`: it reads at most 100 anyway.
+      expect(await db.select(db.uploads).get(), hasLength(100));
+      final runs = await db.uploadDao.newest();
+      expect(runs, hasLength(100));
+      expect(runs.first.events, 103);
+      expect(runs.last.events, 4);
+    });
+
+    test('refuses an unknown outcome', () async {
+      await expectLater(
+        db.uploadDao.add(run(1).copyWith(outcome: const Value('lost'))),
+        throwsA(isA<Exception>()),
+      );
+    });
+  });
 }

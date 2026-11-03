@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:tracklite_sample/domain/analytics/analytics_service.dart';
+import 'package:tracklite_sample/domain/analytics/flush_outcome.dart';
 import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
 
 /// One event an [AnalyticsService] was asked to track. A value: two with the
@@ -37,6 +38,18 @@ class RecordingAnalytics implements AnalyticsService {
   final _queue = StreamController<QueueStats>.broadcast();
 
   void emit(QueueStats stats) => _queue.add(stats);
+
+  /// What the next [flush] answers; [flushGate] holds it until completed.
+  FlushOutcome flushOutcome = const FlushOutcome.nothingToSend();
+  Completer<void>? flushGate;
+  int flushes = 0;
+
+  @override
+  Future<FlushOutcome> flush() async {
+    flushes++;
+    await flushGate?.future;
+    return flushOutcome;
+  }
 
   @override
   Stream<QueueStats> watchQueue() => _queue.stream;

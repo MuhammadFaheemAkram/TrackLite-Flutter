@@ -102,4 +102,22 @@ void main() {
       contains('apiKey: ****,'),
     );
   });
+
+  test('the transport: none means the default server; equal only if the '
+      'same object', () {
+    final server = FakeAnalyticsServer();
+    final a = TrackLiteConfig(apiKey: 'k', transport: server);
+
+    expect(valid.transport, isNull);
+    expect(
+      valid.toString(),
+      contains('transport: FakeAnalyticsServer (default)'),
+    );
+    expect(a, TrackLiteConfig(apiKey: 'k', transport: server));
+    expect(
+      a,
+      isNot(TrackLiteConfig(apiKey: 'k', transport: FakeAnalyticsServer())),
+    );
+    expect(a.toString(), contains('transport: FakeAnalyticsServer)'));
+  });
 }

@@ -5,14 +5,16 @@ import 'package:tracklite/src/config/tracklite_config.dart';
 import 'package:tracklite/src/debug/tracklite_debug.dart';
 import 'package:tracklite/src/identity/identity_store.dart';
 import 'package:tracklite/src/model/flush_result.dart';
+import 'package:tracklite/src/network/fake_analytics_server.dart';
 import 'package:tracklite/src/recording/event_recorder.dart';
 import 'package:tracklite/src/storage/meta_keys.dart';
 import 'package:tracklite/src/storage/tracklite_database.dart';
+import 'package:tracklite/src/upload/upload_manager.dart';
 import 'package:tracklite/src/util/tracklite_logger.dart';
 import 'package:uuid/uuid.dart';
 
-/// The client behind the interface: it stores every event (Phase 2); the
-/// uploads (Phase 3) send them.
+/// The client behind the interface: it stores every event, and uploads
+/// them in batches.
 @internal
 final class TrackLiteClientImpl implements TrackLiteClient {
   TrackLiteClientImpl._({
@@ -21,6 +23,7 @@ final class TrackLiteClientImpl implements TrackLiteClient {
     required this.database,
     required this._recorder,
     required this._identity,
+    required this._uploads,
   });
 
   /// Opens the client's database and identity. [database], [clock] and
@@ -55,6 +58,16 @@ final class TrackLiteClientImpl implements TrackLiteClient {
         database: database,
         recorder: recorder,
         identity: identity,
+        uploads: UploadManager(
+          database: database,
+          recorder: recorder,
+          transport: config.transport ?? FakeAnalyticsServer(),
+          apiKey: config.apiKey,
+          batchSize: config.batchSize,
+          logger: log,
+          newId: ids,
+          clock: clock,
+        ),
       );
     }
 
@@ -85,6 +98,7 @@ final class TrackLiteClientImpl implements TrackLiteClient {
   final TrackLiteDatabase database;
   final EventRecorder _recorder;
   final IdentityStore _identity;
+  final UploadManager _uploads;
 
   bool _closed = false;
 
@@ -153,20 +167,30 @@ final class TrackLiteClientImpl implements TrackLiteClient {
     }
   }
 
+  /// Whether an upload is running.
+  bool get isUploading => _uploads.isUploading;
+
   @override
   Future<FlushResult> flush() async {
     if (_closed) return const NotInitialized();
-    await _recorder.idle;
-    // Stored, but there is no uploader yet (Phase 3): nothing to send.
-    return const NothingToSend();
+    // An explicit flush sends everything waiting, retries included: the
+    // developer asked for it now.
+    final result = await _uploads.upload(
+      UploadTrigger.manual,
+      ignoreBackoff: true,
+    );
+    logger.debug('flush(): $result');
+    return result;
   }
 
   @override
   Future<void> shutdown() async {
     if (_closed) return;
     _closed = true;
-    // What was tracked before the shutdown is stored, then the file closes.
+    // What was tracked before the shutdown is stored, a running upload
+    // finishes, then the file closes.
     await _recorder.close();
+    await _uploads.close();
     await database.close();
     logger.debug('shutdown()');
   }

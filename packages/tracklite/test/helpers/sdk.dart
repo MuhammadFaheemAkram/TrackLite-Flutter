@@ -28,28 +28,37 @@ class LogRecorder {
       lines.where((line) => line.$1 == level).map((line) => line.$2);
 }
 
+/// A fake server that answers at once and never fails: tests choose
+/// failures on purpose (a [ScriptedTransport], or the server's knobs).
+FakeAnalyticsServer instantServer() =>
+    FakeAnalyticsServer(latency: Duration.zero, failureRate: 0);
+
+/// A config for tests: debug logs on, an [instantServer].
+TrackLiteConfig testConfig({
+  AnalyticsTransport? transport,
+  int batchSize = 20,
+  int maxQueueSize = 10000,
+  bool debugMode = true,
+}) => TrackLiteConfig(
+  apiKey: 'demo_key',
+  batchSize: batchSize,
+  maxQueueSize: maxQueueSize,
+  debugMode: debugMode,
+  transport: transport ?? instantServer(),
+);
+
 /// A client on an in-memory database, with a fixed clock and readable ids.
 Future<TrackLiteClientImpl> openTestClient({
-  TrackLiteConfig config = const TrackLiteConfig(
-    apiKey: 'demo_key',
-    debugMode: true,
-  ),
+  TrackLiteConfig? config,
   TrackLiteDatabase? database,
   int? maxQueue,
   LogRecorder? logs,
   Clock? clock,
   String Function()? newId,
 }) => TrackLiteClientImpl.open(
-  maxQueue == null
-      ? config
-      : TrackLiteConfig(
-          apiKey: config.apiKey,
-          batchSize: 1,
-          maxQueueSize: maxQueue,
-          debugMode: config.debugMode,
-        ),
+  config ?? testConfig(batchSize: 1, maxQueueSize: maxQueue ?? 10000),
   database: database ?? TrackLiteDatabase.inMemory(),
-  logger: (logs ?? LogRecorder()).logger(enabled: config.debugMode),
+  logger: (logs ?? LogRecorder()).logger(enabled: config?.debugMode ?? true),
   clock: clock ?? Clock.fixed(testNow),
   newId: newId ?? SequentialIds().call,
 );

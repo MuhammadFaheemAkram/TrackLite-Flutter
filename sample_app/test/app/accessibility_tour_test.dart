@@ -30,6 +30,15 @@ void main() {
         ('Profile', '/profile', null),
         ('Dashboard, an empty queue', '/dashboard', null),
         (
+          'Dashboard, after a flush',
+          '/dashboard',
+          (tester) async {
+            await tester.tap(find.text('Flush now'));
+            await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+            await tester.pumpAndSettle();
+          },
+        ),
+        (
           'Dashboard, with events',
           '/shop/grinder',
           (tester) async {

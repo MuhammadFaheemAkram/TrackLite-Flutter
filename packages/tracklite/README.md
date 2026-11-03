@@ -9,8 +9,8 @@ A small analytics SDK for Flutter apps, built to show how an SDK is designed:
 
 It talks to a fake analytics server: this is a learning project, not a hosted service.
 
-> **Status: 0.2.0, events are stored.**
-> Every `track()` call is validated and stored in the SDK's own database; uploading comes in 0.3.0.
+> **Status: 0.3.0, events are uploaded.**
+> Every `track()` call is stored in the SDK's own database, and `flush()` sends them in batches. Retries with backoff and automatic and background uploads come in 0.4.0.
 > See the [repository](https://github.com/MuhammadFaheemAkram/TrackLite-Flutter) for the plan, the sample app and the design docs.
 
 ## Usage
@@ -49,6 +49,33 @@ TrackLite.clearUser();
 - **The queue is bounded:** past `maxQueueSize`, the oldest unsent events are dropped, and counted.
 - **Calls before `initialize` finishes are kept** (up to 100 events) and replayed with the time they were made.
 - **`clearUser()` starts a new anonymous id,** so the next person on the device isn't linked to the last.
+
+## Uploads
+
+`flush()` sends every pending event to the transport, `batchSize` per request, oldest first, and returns a `FlushResult`:
+- **Single-flight:** one upload runs at a time; a flush during one joins it.
+- **Atomic claims:** a batch is claimed in one statement (`pending` → `sending`), so two uploaders never send the same event.
+- **A failure stops the run and keeps the events:**
+  - unreachable, a 5xx and a 401 put the batch back to `pending`;
+  - a 400 marks it `failed`;
+  - a 401 is reported as `Unauthorized`.
+- **At least once:** a claim older than 5 minutes (an upload that died) is sent again, and the server drops duplicates by event id.
+
+The default transport is `FakeAnalyticsServer` (800 ms, 10 % failures). Send elsewhere with your own `AnalyticsTransport`:
+
+```dart
+class HttpTransport implements AnalyticsTransport {
+  @override
+  Future<UploadResponse> upload(UploadBatch batch) async {
+    // POST jsonEncode(batch.toJson()) with batch.apiKey in a header;
+    // throw ServerUnreachable / ServerFailure / ApiKeyRejected / RequestRejected.
+  }
+}
+
+await TrackLite.initialize(
+  TrackLiteConfig(apiKey: 'key', transport: HttpTransport()),
+);
+```
 
 ## Debug tools
 

@@ -6,11 +6,13 @@ import 'package:tracklite/src/storage/tracklite_database.dart';
 import 'package:tracklite/testing.dart';
 import 'package:tracklite/tracklite.dart';
 
+import 'helpers/sdk.dart';
+
 // The static facade: its lifecycle (initialize, shutdown) and what each call
 // does when the SDK isn't running. It must never throw at the app, except
 // for a bad configuration.
 void main() {
-  const config = TrackLiteConfig(apiKey: 'demo_key');
+  final config = testConfig(debugMode: false);
 
   setUpAll(TrackLiteTesting.useInMemoryDatabase);
   tearDownAll(TrackLiteTesting.useDeviceDatabase);
@@ -94,7 +96,8 @@ void main() {
       await TrackLite.flush();
 
       final stats = await TrackLite.debug.watchStats().first;
-      expect(stats.pending, 1);
+      expect(stats.tracked, 1);
+      expect(stats.sent, 1);
     });
 
     test('the facade forwards to the instance', () async {
@@ -121,9 +124,7 @@ void main() {
       await TrackLite.initialize(config);
       final first = TrackLite.instance;
 
-      await TrackLite.initialize(
-        const TrackLiteConfig(apiKey: 'other', debugMode: true),
-      );
+      await TrackLite.initialize(testConfig());
 
       expect(TrackLite.instance, same(first));
     });
@@ -141,7 +142,7 @@ void main() {
     });
 
     test('two calls at once share one start: the first config wins', () async {
-      const second = TrackLiteConfig(apiKey: 'other', debugMode: true);
+      final second = testConfig();
 
       await Future.wait([
         TrackLite.initialize(config),

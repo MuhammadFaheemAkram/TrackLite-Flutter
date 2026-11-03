@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tracklite/src/client/tracklite_client_impl.dart';
@@ -8,6 +10,7 @@ import 'package:tracklite/src/storage/tracklite_database.dart';
 import 'package:tracklite/src/util/tracklite_logger.dart';
 import 'package:tracklite/tracklite.dart';
 
+import '../helpers/scripted_transport.dart';
 import '../helpers/sdk.dart';
 
 void main() {
@@ -20,7 +23,7 @@ void main() {
   });
 
   Future<TrackLiteClientImpl> open({bool debugMode = true}) => openTestClient(
-    config: TrackLiteConfig(apiKey: 'demo_key', debugMode: debugMode),
+    config: testConfig(debugMode: debugMode),
     database: db,
     logs: logs,
   );
@@ -83,17 +86,33 @@ void main() {
     expect(client.userId, 'u' * 255);
   });
 
-  test('flush waits for the writes, and has nothing to send yet', () async {
+  test('flush stores what was tracked, then uploads it', () async {
     final client = await open()
       ..track('tap');
     expect(client.isIdle, isFalse);
 
-    expect(await client.flush(), isA<NothingToSend>());
+    final result = await client.flush();
 
+    expect(result, isA<Uploaded>().having((r) => r.events, 'events', 1));
     // Nothing still pending the moment flush returns (a read through the
     // database alone would queue behind the write and pass anyway).
     expect(client.isIdle, isTrue);
-    expect(await db.eventDao.all(), hasLength(1));
+    expect((await db.eventDao.all()).single.status, 'sent');
+  });
+
+  test('flush sends an event still waiting for its retry: the developer '
+      'asked for it now', () async {
+    final client = await open()
+      ..track('retry_me');
+    await client.idle;
+    await (db.update(db.events)).write(
+      EventsCompanion(
+        nextAttemptAt: Value(testNow.add(const Duration(hours: 1))),
+      ),
+    );
+
+    expect(await client.flush(), isA<Uploaded>());
+    expect((await db.eventDao.all()).single.status, 'sent');
   });
 
   group('shutdown', () {
@@ -115,6 +134,29 @@ void main() {
       final reopened = TrackLiteDatabase(NativeDatabase(file));
       addTearDown(reopened.close);
       expect((await reopened.eventDao.all()).map((row) => row.name), ['last']);
+    });
+
+    test('waits for an upload in flight, then closes', () async {
+      final transport = ScriptedTransport()..gate = Completer<void>();
+      final client =
+          await openTestClient(
+              config: testConfig(transport: transport),
+              database: db,
+              logs: logs,
+            )
+            ..track('tap');
+      final flushing = client.flush();
+      await pumpEventQueue();
+      expect(client.isUploading, isTrue);
+
+      var closed = false;
+      final closing = client.shutdown().then((_) => closed = true);
+      await pumpEventQueue();
+      expect(closed, isFalse);
+
+      transport.gate!.complete();
+      await closing;
+      expect(await flushing, isA<Uploaded>());
     });
 
     test('later calls are ignored, with a warning each', () async {

@@ -1,3 +1,26 @@
+## 0.3.0
+
+- **Events are uploaded.** `flush()` stores what was tracked, then sends every pending event in batches of `batchSize`, oldest first, and reports a `FlushResult`.
+- **One upload at a time:** a flush during an upload joins it.
+- **Statuses:**
+  - a batch is claimed (`pending` → `sending`, in one statement, so two uploaders never send the same event);
+  - on success it is `sent`, with the total kept in a counter;
+  - `sent` events are kept 24 hours, then pruned.
+- **Failures keep the events and stop the run:**
+  - unreachable, a 5xx and a 401 put the batch back to `pending`, with the error;
+  - a 400 marks it `failed`;
+  - a 401 is reported as `Unauthorized`.
+- **At least once:**
+  - a `sending` claim older than 5 minutes (the app died mid-upload) goes back to `pending` and is sent again;
+  - the server drops duplicates by event id.
+- **`AnalyticsTransport`:** the network boundary, with `UploadBatch` (and its JSON body), `UploadResponse` and the sealed `TransportException` (`ServerUnreachable`, `ServerFailure`, `ApiKeyRejected`, `RequestRejected`). Set it with `TrackLiteConfig.transport`.
+- **`FakeAnalyticsServer`, the default transport:**
+  - latency (800 ms) and a failure rate (10 %);
+  - `reachable`, and an API key check (a blank key or one starting `invalid` is rejected);
+  - the 100-event batch limit, deduplication by id, and `FakeServerStats`.
+- **Schema v2** adds the `uploads` log (the newest 100 runs), with a tested migration from v1.
+- `TrackLiteStats.sent` is now the total ever accepted.
+
 ## 0.2.0
 
 - **Events are stored.** `track()` validates and queues each event; one write queue stores everything queued in a frame in one transaction, in call order, in the SDK's own database (`tracklite.sqlite`).

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:tracklite/src/network/analytics_transport.dart';
 
 /// How an app configures the SDK, once, at `TrackLite.initialize`.
 ///
@@ -16,6 +17,7 @@ final class TrackLiteConfig {
     this.maxQueueSize = 10000,
     this.backgroundUploads = true,
     this.debugMode = false,
+    this.transport,
   });
 
   /// The largest batch the server accepts in one request.
@@ -52,6 +54,10 @@ final class TrackLiteConfig {
   /// Whether the SDK logs what it does. Off, it is silent.
   final bool debugMode;
 
+  /// Where batches go. `null` (the default) is a `FakeAnalyticsServer`
+  /// with its demo settings: this project has no real backend.
+  final AnalyticsTransport? transport;
+
   /// Every rule this configuration breaks, in words; empty when valid.
   List<String> get problems => [
     if (apiKey.trim().isEmpty) 'apiKey must not be blank',
@@ -83,7 +89,8 @@ final class TrackLiteConfig {
       other.maxRetries == maxRetries &&
       other.maxQueueSize == maxQueueSize &&
       other.backgroundUploads == backgroundUploads &&
-      other.debugMode == debugMode;
+      other.debugMode == debugMode &&
+      identical(other.transport, transport);
 
   @override
   int get hashCode => Object.hash(
@@ -94,6 +101,7 @@ final class TrackLiteConfig {
     maxQueueSize,
     backgroundUploads,
     debugMode,
+    identityHashCode(transport),
   );
 
   // The key is masked: a config printed in a log or a crash report must not
@@ -103,7 +111,8 @@ final class TrackLiteConfig {
       'TrackLiteConfig(apiKey: ${_masked(apiKey)}, batchSize: $batchSize, '
       'flushInterval: $flushInterval, maxRetries: $maxRetries, '
       'maxQueueSize: $maxQueueSize, backgroundUploads: $backgroundUploads, '
-      'debugMode: $debugMode)';
+      'debugMode: $debugMode, '
+      'transport: ${transport?.runtimeType ?? 'FakeAnalyticsServer (default)'})';
 
   static String _masked(String key) =>
       key.length <= 4 ? '****' : '${key.substring(0, 4)}****';

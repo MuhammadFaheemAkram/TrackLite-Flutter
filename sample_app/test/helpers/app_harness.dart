@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:tracklite/testing.dart';
 import 'package:tracklite/tracklite.dart';
-import 'package:tracklite_sample/app/analytics_config.dart';
 import 'package:tracklite_sample/app/tracklite_sample_app.dart';
 import 'package:tracklite_sample/di/injection.dart';
 import 'package:tracklite_sample/domain/analytics/analytics_service.dart';
@@ -30,11 +29,19 @@ Future<void> pumpSample(
   await tester.pumpAndSettle();
 }
 
-/// Starts the real SDK as `main()` does, on a fresh in-memory database
-/// (a widget test has no file system for it).
+/// The fake server the app's SDK talks to in tests: instant and reliable,
+/// unless a test turns its knobs.
+late FakeAnalyticsServer testServer;
+
+/// Starts the real SDK as `main()` does, on a fresh in-memory database (a
+/// widget test has no file system for it), with [testServer] as its
+/// backend.
 Future<void> startSdk() {
   TrackLiteTesting.useInMemoryDatabase();
-  return TrackLite.initialize(sampleTrackLiteConfig);
+  testServer = FakeAnalyticsServer(latency: Duration.zero, failureRate: 0);
+  return TrackLite.initialize(
+    TrackLiteConfig(apiKey: 'demo_key', transport: testServer),
+  );
 }
 
 /// Undoes [pumpSample]: a fresh graph and a stopped SDK for the next test.

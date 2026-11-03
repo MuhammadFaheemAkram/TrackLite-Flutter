@@ -21,6 +21,21 @@ class DashboardCubit extends Cubit<DashboardState> {
     );
   }
 
+  /// Sends what is waiting now. A second tap while it runs does nothing.
+  Future<void> flush() async {
+    if (state.flushing) return;
+    emit(state.copyWith(flushing: true));
+    final outcome = await _analytics.flush();
+    if (isClosed) return;
+    emit(
+      state.copyWith(
+        flushing: false,
+        lastFlush: outcome,
+        flushSerial: state.flushSerial + 1,
+      ),
+    );
+  }
+
   @override
   Future<void> close() async {
     await _queue?.cancel();

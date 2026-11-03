@@ -22,4 +22,16 @@ export 'package:tracklite/src/model/flush_result.dart'
         Uploaded;
 export 'package:tracklite/src/model/tracklite_event.dart' show TrackLiteEvent;
 export 'package:tracklite/src/model/tracklite_stats.dart' show TrackLiteStats;
+export 'package:tracklite/src/network/analytics_transport.dart'
+    show
+        AnalyticsTransport,
+        ApiKeyRejected,
+        RequestRejected,
+        ServerFailure,
+        ServerUnreachable,
+        TransportException,
+        UploadBatch,
+        UploadResponse;
+export 'package:tracklite/src/network/fake_analytics_server.dart'
+    show FakeAnalyticsServer, FakeServerStats;
 export 'package:tracklite/src/tracklite.dart' show TrackLite;

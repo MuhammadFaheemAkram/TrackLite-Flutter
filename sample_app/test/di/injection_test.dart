@@ -30,5 +30,8 @@ void main() {
   test('the sample configures the SDK with a valid config', () {
     expect(sampleTrackLiteConfig.problems, isEmpty);
     expect(sampleTrackLiteConfig.apiKey, 'demo_key');
+    // No transport: the SDK's own fake server, with its demo latency and
+    // failure rate.
+    expect(sampleTrackLiteConfig.transport, isNull);
   });
 }

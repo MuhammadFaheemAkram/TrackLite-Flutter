@@ -26,7 +26,7 @@ final class TrackLiteStats {
   /// Events in an upload that is in flight.
   final int sending;
 
-  /// Events the server accepted (and still kept for the debug tools).
+  /// Events the server accepted, ever.
   final int sent;
 
   /// Events given up on after too many server errors.

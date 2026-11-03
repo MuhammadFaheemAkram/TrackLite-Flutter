@@ -45,8 +45,8 @@ The SDK is built in **strict, reviewable phases**. Each phase ends with:
 |------:|-------|:------:|
 | 1 | SDK foundation: the workspace, the public API's shape, the config and its rules, the sample app's shell and screens, CI | ✅ Done |
 | 2 | Event storage: drift, the queue, validation, the anonymous id, `track()` stores events | ✅ Done |
-| 3 | The upload pipeline: the fake server, batching, statuses, at least once | ⏳ Next |
-| 4 | Retries and background uploads: backoff, the network monitor, the triggers, `workmanager` | |
+| 3 | The upload pipeline: the fake server, batching, statuses, at least once | ✅ Done |
+| 4 | Retries and background uploads: backoff, the network monitor, the triggers, `workmanager` | ⏳ Next |
 | 5 | The debug dashboard and SDK tools: identity, the debug surface, screen tracking | |
 | 6 | Documentation & CI | |
 
@@ -81,6 +81,9 @@ The public API is one library, [`package:tracklite/tracklite.dart`](packages/tra
 | `TrackLiteConfig` | The API key and the options, with their rules checked at `initialize` |
 | `TrackLiteEvent`, `EventStatus` | An event as stored, and where it is: `pending`, `sending`, `sent`, `failed` |
 | `TrackLiteDebug`, `TrackLiteStats` | The debug tools (`TrackLite.debug.watchStats()`): the queue's counts, the totals, the ids |
+| `AnalyticsTransport`, `UploadBatch`, `UploadResponse` | The network boundary: set `TrackLiteConfig.transport` to send to a real backend |
+| `TransportException` (`ServerUnreachable`, `ServerFailure`, `ApiKeyRejected`, `RequestRejected`) | Why an upload failed; the kind decides what happens to the batch |
+| `FakeAnalyticsServer`, `FakeServerStats` | The default transport: latency, a failure rate, an API key check, deduplication by event id |
 | `FlushResult` | What a flush did: `Uploaded`, `NothingToSend`, `Offline`, `Failed`, `Unauthorized`, `NotInitialized` |
 
 A second library, [`package:tracklite/testing.dart`](packages/tracklite/lib/testing.dart), is for an app's tests: `TrackLiteTesting.useInMemoryDatabase()`.
@@ -97,6 +100,11 @@ Everything else is in `lib/src/`, marked `@internal`, and out of reach.
   - An invalid event is refused and counted; past `maxQueueSize`, the oldest unsent are dropped and counted.
 - **Early calls kept:** calls made before `initialize` finishes are replayed with their own times (up to 100 events).
 - **An identity:** a stored anonymous id; `clearUser()` also starts a new one, so two people on one device aren't linked.
+- **Uploaded in batches** (0.3.0):
+  - `flush()` sends every pending event, `batchSize` per request, oldest first, one run at a time.
+  - A batch is **claimed** in one statement (`pending` → `sending`), so two uploaders never send the same event.
+  - A failure stops the run and keeps the events: back to `pending`, or `failed` for a refused (400) batch.
+- **At least once:** a claim older than 5 minutes (the app died mid-upload) goes back to `pending` and is sent again; the server drops the duplicates by event id.
 
 ---
 
@@ -116,7 +124,7 @@ Everything else is in `lib/src/`, marked `@internal`, and out of reach.
   - **Demo controls:** Device offline, the server's failure rate, its latency.
 - ♿ **Accessible:** dark mode and large text on every screen; never color alone. A test tour grows with the app and checks both.
 
-After Phase 2, Home's buttons and Buy store their events through the app's own `AnalyticsService` port, and the **Dashboard shows the queue live**: the counts by status, the totals, and the ids.
+After Phase 3, Home's buttons and Buy store their events through the app's own `AnalyticsService` port. The **Dashboard shows the queue live** (the counts by status, the totals, the ids), and **Flush now** sends it to the fake server, saying what happened.
 
 ---
 
@@ -156,10 +164,10 @@ View ─▶ Cubit ─▶ AnalyticsService (port)
            TrackLiteAnalyticsService ──────▶ TrackLiteClient ◀── TrackLite (static facade)
              (the adapter, data layer)              │
                                                     ▼
-                                         EventRecorder ─▶ drift queue ─▶ UploadManager ─▶ fake server
-                                         (validate, one     (tracklite     (Phase 3–4)
-                                          transaction        .sqlite)
-                                          per frame)            │
+                                         EventRecorder ─▶ drift queue ─▶ UploadManager ─▶ AnalyticsTransport
+                                         (validate, one     (tracklite     (claim, batch,    (FakeAnalyticsServer)
+                                          transaction        .sqlite)       sent / back to
+                                          per frame)            │           pending, log)
                                                                 └─▶ TrackLite.debug.watchStats() ─▶ the Dashboard
 ```
 
@@ -226,29 +234,29 @@ fvm dart format --output=none --set-exit-if-changed .
 (cd packages/tracklite && fvm flutter pub publish --dry-run)
 ```
 
-**202 tests** after Phase 2:
-- **The SDK (96):**
-  - every config rule, just inside and just outside; the API key masked;
-  - **the database:** each `CHECK` refusing a broken row, `seq` order, the unique id, dropping the oldest unsent (never one in flight), the counters, the exported schema;
-  - **the validator:** every limit, just inside and just outside;
-  - **the recorder:**
-    - 100 calls in a frame (all stored, in order, no duplicates, one transaction);
-    - rejected and dropped events counted;
-    - a failed write logged while the queue carries on;
-  - **the identity:** created once, read back, rotated by `clearUser`;
-  - **the client:**
-    - the identity stamped at the call;
-    - user id limits;
-    - `shutdown` storing before closing (proved on a real file);
-    - the fallback to memory when the file can't open;
-  - **the facade:** early calls replayed with their own times, the 100-event limit, nothing kept after `shutdown`, starts shared and validated;
-  - **the public API:** both libraries' exact names, each used as a host would; the version in code, pubspec and changelog.
-- **The sample (106):**
-  - the theme and status colors, routes and navigation;
-  - the Cubits and views, the adapter against a fake SDK client and debug;
-  - **the real SDK in memory:** a purchase stored and shown on the Dashboard;
-  - the SDK boundary;
-  - the accessibility tour (every screen and state, including the Dashboard empty and with events).
+**263 tests** after Phase 3:
+- **The SDK (140):**
+  - **the config's rules,** including the transport;
+  - **the database:** each `CHECK`, `seq` order, dropping the oldest unsent, the counters; **claims** (atomic, the limit, a second claim gets the rest, retries that wait), expired claims, outcomes and pruning, the upload log's limit;
+  - **every schema upgrade path,** and v1 → v2 keeping real events;
+  - the validator, the recorder (group commit, all or nothing), the identity;
+  - **the fake server:** dedupe, latency in fake time, unreachable, the key check, the batch limit, a seeded failure rate, the JSON body;
+  - **the uploader:**
+    - 100 events in 5 batches, oldest first;
+    - each failure kind and its effect;
+    - a partial run;
+    - a crash after the server stored a batch (resent, deduplicated);
+    - single-flight;
+    - pruning and the log;
+    - a database failing mid-run;
+  - the client, the facade (early calls, starts), the public API's exact names, the version.
+- **The sample (123):**
+  - the theme, routes and navigation;
+  - the Cubits and views;
+  - **the adapter,** mapping every `FlushResult`;
+  - the flush wording;
+  - **the real SDK in memory:** a purchase stored, flushed to the server, then shown as sent; a failing server keeping it pending;
+  - the SDK boundary, and the accessibility tour.
 
 CI runs on every push to `main` and every pull request:
 - the FVM-pinned Flutter;
@@ -273,6 +281,7 @@ CI runs on every push to `main` and every pull request:
 | Public API | `object TrackLite` | `enum TrackLite` (static) | `abstract final class TrackLite` + a `TrackLiteClient` interface |
 | Hiding internals | `internal` | `internal` | `lib/src/` + `show` lists + `@internal` |
 | The queue | Room | SwiftData (an actor guards it) | drift, a serial write queue (one transaction per frame) |
+| Uploads | `FakeAnalyticsApi`, batches | `FakeAnalyticsService`, batches | `AnalyticsTransport` + `FakeAnalyticsServer`; atomic claims, at least once, dedupe by id |
 | Sample state | ViewModel + StateFlow | `@Observable` | Cubit, behind an `AnalyticsService` port |
 | CI | `android-ci.yml` | `ios-ci.yml` | `flutter-ci.yml` (+ `pub publish --dry-run`) |
 
@@ -284,6 +293,7 @@ The full table (the queue, concurrency, background work, retries) grows with the
 
 - [Phase 1 — SDK Foundation](docs/PHASE_1_SUMMARY.md)
 - [Phase 2 — Event Storage Layer](docs/PHASE_2_SUMMARY.md)
+- [Phase 3 — Analytics Processing Pipeline](docs/PHASE_3_SUMMARY.md)
 - The SDK's own [README](packages/tracklite/README.md) and [CHANGELOG](packages/tracklite/CHANGELOG.md)
 
 ---

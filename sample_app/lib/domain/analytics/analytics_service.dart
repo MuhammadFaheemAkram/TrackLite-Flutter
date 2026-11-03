@@ -1,3 +1,4 @@
+import 'package:tracklite_sample/domain/analytics/flush_outcome.dart';
 import 'package:tracklite_sample/domain/analytics/queue_stats.dart';
 
 /// What the app needs from analytics, in the app's own words.
@@ -17,6 +18,9 @@ abstract interface class AnalyticsService {
 
   /// Stops tying events to a user (after signing out).
   void reset();
+
+  /// Sends what is waiting now, and says what happened.
+  Future<FlushOutcome> flush();
 
   /// What the queue holds now, then after every change (the Dashboard).
   Stream<QueueStats> watchQueue();

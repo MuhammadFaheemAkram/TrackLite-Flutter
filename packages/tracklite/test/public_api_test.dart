@@ -47,7 +47,8 @@ void main() {
   test('every name is usable from a host', () async {
     TrackLiteTesting.useInMemoryDatabase();
     addTearDown(TrackLiteTesting.useDeviceDatabase);
-    const config = TrackLiteConfig(apiKey: 'demo_key');
+    final server = FakeAnalyticsServer(latency: Duration.zero, failureRate: 0);
+    final config = TrackLiteConfig(apiKey: 'demo_key', transport: server);
     await TrackLite.initialize(config);
     addTearDown(TrackLite.shutdown);
 
@@ -64,6 +65,28 @@ void main() {
     expect(stats.tracked, 2);
     expect(TrackLite.earlyCallLimit, 100);
     expect(TrackLite.version, matches(RegExp(r'^\d+\.\d+\.\d+$')));
+
+    expect(server.stats, isA<FakeServerStats>());
+    expect(server.stats.accepted, 2);
+
+    // A host can write its own transport and throw the SDK's errors.
+    final AnalyticsTransport custom = _HostTransport();
+    final batch = UploadBatch(
+      apiKey: 'k',
+      sentAt: DateTime.utc(2026),
+      libraryVersion: TrackLite.version,
+      events: const [],
+    );
+    final UploadResponse response = await custom.upload(batch);
+    expect(response.accepted, 0);
+    for (final error in const <TransportException>[
+      ServerUnreachable(),
+      ServerFailure(500),
+      ApiKeyRejected(),
+      RequestRejected(400, 'bad'),
+    ]) {
+      expect(meaningOf(error), isNotEmpty);
+    }
 
     final event = TrackLiteEvent(
       id: 'e1',
@@ -98,6 +121,16 @@ const _exported = [
   'TrackLiteStats',
   'TrackLiteEvent',
   'EventStatus',
+  'AnalyticsTransport',
+  'UploadBatch',
+  'UploadResponse',
+  'TransportException',
+  'ServerUnreachable',
+  'ServerFailure',
+  'ApiKeyRejected',
+  'RequestRejected',
+  'FakeAnalyticsServer',
+  'FakeServerStats',
   'FlushResult',
   'Uploaded',
   'NothingToSend',
@@ -118,4 +151,18 @@ String describe(FlushResult result) => switch (result) {
   Failed(:final reason, :final remaining) => '$reason; $remaining waiting',
   Unauthorized() => 'Check the API key',
   NotInitialized() => 'Not running',
+};
+
+class _HostTransport implements AnalyticsTransport {
+  @override
+  Future<UploadResponse> upload(UploadBatch batch) async =>
+      UploadResponse(accepted: batch.events.length);
+}
+
+/// Sealed: a host's switch over the errors is exhaustive too.
+String meaningOf(TransportException error) => switch (error) {
+  ServerUnreachable() => 'not reached',
+  ServerFailure(:final statusCode) => 'server error $statusCode',
+  ApiKeyRejected() => 'bad key',
+  RequestRejected(:final statusCode) => 'refused ($statusCode)',
 };
