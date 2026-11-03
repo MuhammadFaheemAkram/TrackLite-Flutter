@@ -28,7 +28,15 @@ void main() {
         ),
         ('Product not found', '/shop/teapot', null),
         ('Profile', '/profile', null),
-        ('Dashboard', '/dashboard', null),
+        ('Dashboard, an empty queue', '/dashboard', null),
+        (
+          'Dashboard, with events',
+          '/shop/grinder',
+          (tester) async {
+            await tester.tapAndSettle(find.text('Buy'));
+            await tester.tapAndSettle(destination('Dashboard'));
+          },
+        ),
         ('Page not found', '/nowhere', null),
       ]) {
         testWidgets(name, (tester) async {
@@ -42,6 +50,9 @@ void main() {
           tester.view.physicalSize = const Size(390 * 3, 3000 * 3);
           await tester.pumpAndSettle();
           await act?.call(tester);
+          // Let the SDK's writes and the Dashboard's stream land.
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+          await tester.pumpAndSettle();
           final context = tester.element(find.byType(Scaffold).last);
           expect(MediaQuery.textScalerOf(context).scale(10), 20);
           expect(Theme.of(context).brightness, brightness);

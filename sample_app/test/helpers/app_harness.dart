@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:tracklite/testing.dart';
 import 'package:tracklite/tracklite.dart';
 import 'package:tracklite_sample/app/analytics_config.dart';
 import 'package:tracklite_sample/app/tracklite_sample_app.dart';
@@ -17,7 +18,7 @@ Future<void> pumpSample(
   String? initialLocation,
   AnalyticsService? analytics,
 }) async {
-  await TrackLite.initialize(sampleTrackLiteConfig);
+  await startSdk();
   configureDependencies();
   if (analytics != null) {
     getIt
@@ -27,6 +28,13 @@ Future<void> pumpSample(
   tester.usePhoneSurface();
   await tester.pumpWidget(TrackLiteSampleApp(initialLocation: initialLocation));
   await tester.pumpAndSettle();
+}
+
+/// Starts the real SDK as `main()` does, on a fresh in-memory database
+/// (a widget test has no file system for it).
+Future<void> startSdk() {
+  TrackLiteTesting.useInMemoryDatabase();
+  return TrackLite.initialize(sampleTrackLiteConfig);
 }
 
 /// Undoes [pumpSample]: a fresh graph and a stopped SDK for the next test.

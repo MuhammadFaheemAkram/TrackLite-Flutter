@@ -9,6 +9,7 @@ export 'package:tracklite/src/client/tracklite_client.dart'
     show TrackLiteClient;
 export 'package:tracklite/src/config/tracklite_config.dart'
     show TrackLiteConfig;
+export 'package:tracklite/src/debug/tracklite_debug.dart' show TrackLiteDebug;
 export 'package:tracklite/src/model/event_status.dart' show EventStatus;
 export 'package:tracklite/src/model/flush_result.dart'
     show
@@ -20,4 +21,5 @@ export 'package:tracklite/src/model/flush_result.dart'
         Unauthorized,
         Uploaded;
 export 'package:tracklite/src/model/tracklite_event.dart' show TrackLiteEvent;
+export 'package:tracklite/src/model/tracklite_stats.dart' show TrackLiteStats;
 export 'package:tracklite/src/tracklite.dart' show TrackLite;

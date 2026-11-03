@@ -44,8 +44,8 @@ The SDK is built in **strict, reviewable phases**. Each phase ends with:
 | Phase | Scope | Status |
 |------:|-------|:------:|
 | 1 | SDK foundation: the workspace, the public API's shape, the config and its rules, the sample app's shell and screens, CI | ✅ Done |
-| 2 | Event storage: drift, the queue, validation, the anonymous id, `track()` stores events | ⏳ Next |
-| 3 | The upload pipeline: the fake server, batching, statuses, at least once | |
+| 2 | Event storage: drift, the queue, validation, the anonymous id, `track()` stores events | ✅ Done |
+| 3 | The upload pipeline: the fake server, batching, statuses, at least once | ⏳ Next |
 | 4 | Retries and background uploads: backoff, the network monitor, the triggers, `workmanager` | |
 | 5 | The debug dashboard and SDK tools: identity, the debug surface, screen tracking | |
 | 6 | Documentation & CI | |
@@ -80,15 +80,23 @@ The public API is one library, [`package:tracklite/tracklite.dart`](packages/tra
 | `TrackLiteClient` | The same calls as an interface, for apps with dependency injection (and their fakes) |
 | `TrackLiteConfig` | The API key and the options, with their rules checked at `initialize` |
 | `TrackLiteEvent`, `EventStatus` | An event as stored, and where it is: `pending`, `sending`, `sent`, `failed` |
+| `TrackLiteDebug`, `TrackLiteStats` | The debug tools (`TrackLite.debug.watchStats()`): the queue's counts, the totals, the ids |
 | `FlushResult` | What a flush did: `Uploaded`, `NothingToSend`, `Offline`, `Failed`, `Unauthorized`, `NotInitialized` |
+
+A second library, [`package:tracklite/testing.dart`](packages/tracklite/lib/testing.dart), is for an app's tests: `TrackLiteTesting.useInMemoryDatabase()`.
 
 Everything else is in `lib/src/`, marked `@internal`, and out of reach.
 
-**Rules the SDK keeps from version 0.1.0:**
+**Rules the SDK keeps:**
 - **No throws at the host.** `track()`, `setUserId()` and `clearUser()` return at once and never throw; `flush()` reports a result.
 - **A bad configuration fails fast.** It is the one exception: `initialize` throws an `ArgumentError` naming every broken rule, in development.
 - **Not running, nothing happens.** Before `initialize` and after `shutdown`, calls are ignored and `flush()` says `NotInitialized`.
 - **Silent unless asked.** Without `debugMode`, the SDK logs nothing.
+- **Stored first** (0.2.0):
+  - `track()` validates, stamps and queues; one write queue stores a frame's calls in one transaction, in call order, in the SDK's own `tracklite.sqlite`.
+  - An invalid event is refused and counted; past `maxQueueSize`, the oldest unsent are dropped and counted.
+- **Early calls kept:** calls made before `initialize` finishes are replayed with their own times (up to 100 events).
+- **An identity:** a stored anonymous id; `clearUser()` also starts a new one, so two people on one device aren't linked.
 
 ---
 
@@ -108,7 +116,7 @@ Everything else is in `lib/src/`, marked `@internal`, and out of reach.
   - **Demo controls:** Device offline, the server's failure rate, its latency.
 - ♿ **Accessible:** dark mode and large text on every screen; never color alone. A test tour grows with the app and checks both.
 
-In Phase 1, Home's buttons and Buy already send their events, through the app's own `AnalyticsService` port; the SDK logs them in debug builds.
+After Phase 2, Home's buttons and Buy store their events through the app's own `AnalyticsService` port, and the **Dashboard shows the queue live**: the counts by status, the totals, and the ids.
 
 ---
 
@@ -123,6 +131,8 @@ An SDK's dependencies become every host app's dependencies, so **the SDK and the
 |------|----------------------------|-----------------------|:-----:|
 | Toolchain | Flutter 3.47.6 · Dart 3.13, pinned with [FVM](https://fvm.app); one **pub workspace** | the same | 1 |
 | Public models | hand-written immutable classes; `meta` (`@internal`) | — | 1 |
+| The queue | [`drift`](https://pub.dev/packages/drift) + `drift_flutter` (its own `tracklite.sqlite`, schema v1 exported) | — | 2 |
+| Ids and time | `uuid` (event and anonymous ids), `clock` (an injected "now") | — | 2 |
 | UI | — | [`material_ui`](https://pub.dev/packages/material_ui) (Material 3), `cupertino_ui` | 1 |
 | Navigation | — | `go_router` + `go_router_builder` (typed routes, `StatefulShellRoute`) | 1 |
 | DI | none: a hand-written composition root | `get_it` + `injectable` | 1 |
@@ -131,7 +141,7 @@ An SDK's dependencies become every host app's dependencies, so **the SDK and the
 | Lints / CI | strict analysis + `public_member_api_docs`; `pub publish --dry-run` | strict analysis; `implementation_imports` as an error | 1 |
 | Testing | `flutter_test` | `flutter_test`, `bloc_test`, `mocktail` | 1 |
 
-Planned for the SDK: `drift`, `uuid`, `clock` (Phase 2); `connectivity_plus`, `workmanager` (Phase 4).
+Planned for the SDK: `connectivity_plus`, `workmanager` (Phase 4).
 
 ---
 
@@ -147,7 +157,10 @@ View ─▶ Cubit ─▶ AnalyticsService (port)
              (the adapter, data layer)              │
                                                     ▼
                                          EventRecorder ─▶ drift queue ─▶ UploadManager ─▶ fake server
-                                                         (Phase 2)        (Phase 3–4)
+                                         (validate, one     (tracklite     (Phase 3–4)
+                                          transaction        .sqlite)
+                                          per frame)            │
+                                                                └─▶ TrackLite.debug.watchStats() ─▶ the Dashboard
 ```
 
 - **The sample's Cubits never import the SDK.** They talk to `AnalyticsService`, the app's own port; one adapter implements it with TrackLite. A test checks that only the wiring imports `package:tracklite`.
@@ -157,7 +170,9 @@ View ─▶ Cubit ─▶ AnalyticsService (port)
 TrackLite/                     # the repo root: a pub workspace (one lockfile)
 ├── packages/tracklite/        # THE SDK
 │   ├── lib/tracklite.dart     # the public API (show lists)
-│   ├── lib/src/               # everything else: tracklite.dart (the facade), client/, config/, model/, util/
+│   ├── lib/testing.dart       # the second public library, for apps' tests
+│   ├── lib/src/               # everything else: the facade, client/, config/, model/, recording/, storage/, identity/, debug/, testing/, util/
+│   ├── drift_schemas/         # every schema version, kept to migrate from
 │   ├── example/main.dart      # the snippet pub.dev shows
 │   └── README.md  CHANGELOG.md  LICENSE
 ├── sample_app/                # THE SAMPLE (a normal app)
@@ -211,22 +226,29 @@ fvm dart format --output=none --set-exit-if-changed .
 (cd packages/tracklite && fvm flutter pub publish --dry-run)
 ```
 
-**132 tests** after Phase 1:
-- **The SDK (39):**
-  - every config rule, just inside and just outside; all broken rules named at once; the API key masked in `toString`;
-  - the facade before `initialize`, during it, twice (even with a bad config: ignored), at once (the first config wins), and after `shutdown`;
-  - the client's logging (and its silence without debug mode), errors caught rather than thrown;
-  - the event's value equality;
-  - **the public API:** the exact exported names, each one used as a host would, an exhaustive switch over `FlushResult`;
-  - the version, the same in the code, the pubspec and the changelog.
-- **The sample (93):**
-  - the theme and the status colors (each AA on every surface, in both themes);
-  - typed routes;
-  - navigation on the real DI graph (tabs, a product inside Shop, links, "Product not found", "Page not found");
-  - the Cubits (`bloc_test`) and views (`MockCubit`), the adapter against a fake SDK client;
-  - flows from tap to tracked event;
-  - **the SDK boundary:** only the wiring imports `package:tracklite`;
-  - **the accessibility tour:** every screen and state, light and dark, 200 % text.
+**202 tests** after Phase 2:
+- **The SDK (96):**
+  - every config rule, just inside and just outside; the API key masked;
+  - **the database:** each `CHECK` refusing a broken row, `seq` order, the unique id, dropping the oldest unsent (never one in flight), the counters, the exported schema;
+  - **the validator:** every limit, just inside and just outside;
+  - **the recorder:**
+    - 100 calls in a frame (all stored, in order, no duplicates, one transaction);
+    - rejected and dropped events counted;
+    - a failed write logged while the queue carries on;
+  - **the identity:** created once, read back, rotated by `clearUser`;
+  - **the client:**
+    - the identity stamped at the call;
+    - user id limits;
+    - `shutdown` storing before closing (proved on a real file);
+    - the fallback to memory when the file can't open;
+  - **the facade:** early calls replayed with their own times, the 100-event limit, nothing kept after `shutdown`, starts shared and validated;
+  - **the public API:** both libraries' exact names, each used as a host would; the version in code, pubspec and changelog.
+- **The sample (106):**
+  - the theme and status colors, routes and navigation;
+  - the Cubits and views, the adapter against a fake SDK client and debug;
+  - **the real SDK in memory:** a purchase stored and shown on the Dashboard;
+  - the SDK boundary;
+  - the accessibility tour (every screen and state, including the Dashboard empty and with events).
 
 CI runs on every push to `main` and every pull request:
 - the FVM-pinned Flutter;
@@ -250,6 +272,7 @@ CI runs on every push to `main` and every pull request:
 | Delivery | a library module | a local Swift Package | a Dart package in a pub workspace |
 | Public API | `object TrackLite` | `enum TrackLite` (static) | `abstract final class TrackLite` + a `TrackLiteClient` interface |
 | Hiding internals | `internal` | `internal` | `lib/src/` + `show` lists + `@internal` |
+| The queue | Room | SwiftData (an actor guards it) | drift, a serial write queue (one transaction per frame) |
 | Sample state | ViewModel + StateFlow | `@Observable` | Cubit, behind an `AnalyticsService` port |
 | CI | `android-ci.yml` | `ios-ci.yml` | `flutter-ci.yml` (+ `pub publish --dry-run`) |
 
@@ -260,6 +283,7 @@ The full table (the queue, concurrency, background work, retries) grows with the
 ## 📚 Documentation
 
 - [Phase 1 — SDK Foundation](docs/PHASE_1_SUMMARY.md)
+- [Phase 2 — Event Storage Layer](docs/PHASE_2_SUMMARY.md)
 - The SDK's own [README](packages/tracklite/README.md) and [CHANGELOG](packages/tracklite/CHANGELOG.md)
 
 ---

@@ -9,8 +9,8 @@ A small analytics SDK for Flutter apps, built to show how an SDK is designed:
 
 It talks to a fake analytics server: this is a learning project, not a hosted service.
 
-> **Status: 0.1.0, the API's shape.**
-> Calls are accepted and logged in debug mode; storing (0.2.0) and uploading (0.3.0) come next.
+> **Status: 0.2.0, events are stored.**
+> Every `track()` call is validated and stored in the SDK's own database; uploading comes in 0.3.0.
 > See the [repository](https://github.com/MuhammadFaheemAkram/TrackLite-Flutter) for the plan, the sample app and the design docs.
 
 ## Usage
@@ -39,8 +39,39 @@ TrackLite.clearUser();
 
 - **`track()` returns at once and never throws.** A mistake is logged in debug mode, never thrown at your app.
 - **A bad configuration is the one exception:** `initialize` throws an `ArgumentError` naming every broken rule, so you see it in development.
-- **Before `initialize` finishes, and after `shutdown`, calls are ignored** and `flush()` returns `NotInitialized`.
+- **After `shutdown`, calls are ignored** and `flush()` returns `NotInitialized` (as it does before `initialize`).
 - **Without `debugMode`, the SDK is silent.**
+- **Stored first.** Each event is stored, in call order, in the SDK's own `tracklite.sqlite` (a frame's calls in one transaction) before any upload can see it.
+- **Invalid events are refused and counted, never thrown.** The limits:
+  - a name of 1–64 characters;
+  - up to 25 properties, keys of 1–40 characters not starting with `$`;
+  - values that are a `String` (≤ 255 characters), a finite `num` or a `bool`.
+- **The queue is bounded:** past `maxQueueSize`, the oldest unsent events are dropped, and counted.
+- **Calls before `initialize` finishes are kept** (up to 100 events) and replayed with the time they were made.
+- **`clearUser()` starts a new anonymous id,** so the next person on the device isn't linked to the last.
+
+## Debug tools
+
+```dart
+TrackLite.debug.watchStats().listen((stats) {
+  // stats.pending, .sent, .failed, .dropped, .rejected, .tracked,
+  // stats.userId, stats.anonymousId
+});
+```
+
+## Testing your app
+
+```dart
+import 'package:tracklite/testing.dart';
+
+setUp(() async {
+  TrackLiteTesting.useInMemoryDatabase(); // widget tests have no file system
+  await TrackLite.initialize(const TrackLiteConfig(apiKey: 'test'));
+});
+tearDown(TrackLite.shutdown);
+```
+
+Or depend on `TrackLiteClient` (register `TrackLite.instance`) and pass a fake.
 
 ## Configuration
 

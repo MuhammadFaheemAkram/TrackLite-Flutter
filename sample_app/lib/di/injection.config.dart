@@ -19,6 +19,8 @@ import 'package:tracklite_sample/di/app_module.dart' as _i602;
 import 'package:tracklite_sample/domain/analytics/analytics_service.dart'
     as _i23;
 import 'package:tracklite_sample/domain/shop/product_catalog.dart' as _i21;
+import 'package:tracklite_sample/features/dashboard/cubit/dashboard_cubit.dart'
+    as _i352;
 import 'package:tracklite_sample/features/home/cubit/home_cubit.dart' as _i915;
 import 'package:tracklite_sample/features/product/cubit/product_cubit.dart'
     as _i601;
@@ -35,6 +37,9 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i21.ProductCatalog>(() => const _i21.ProductCatalog());
     gh.lazySingleton<_i23.AnalyticsService>(
       () => _i140.TrackLiteAnalyticsService(gh<_i171.TrackLiteClient>()),
+    );
+    gh.factory<_i352.DashboardCubit>(
+      () => _i352.DashboardCubit(gh<_i23.AnalyticsService>()),
     );
     gh.factory<_i915.HomeCubit>(
       () => _i915.HomeCubit(gh<_i23.AnalyticsService>()),

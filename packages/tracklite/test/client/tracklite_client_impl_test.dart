@@ -1,22 +1,29 @@
+import 'dart:io';
+
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tracklite/src/client/tracklite_client_impl.dart';
+import 'package:tracklite/src/storage/meta_keys.dart';
+import 'package:tracklite/src/storage/tracklite_database.dart';
 import 'package:tracklite/src/util/tracklite_logger.dart';
 import 'package:tracklite/tracklite.dart';
 
+import '../helpers/sdk.dart';
+
 void main() {
-  late List<(LogLevel, String)> logs;
+  late LogRecorder logs;
+  late TrackLiteDatabase db;
 
-  TrackLiteClientImpl clientWith({required bool debugMode}) =>
-      TrackLiteClientImpl(
-        config: TrackLiteConfig(apiKey: 'demo_key', debugMode: debugMode),
-        logger: TrackLiteLogger(
-          enabled: debugMode,
-          sink: (level, message, {error, stackTrace}) =>
-              logs.add((level, message)),
-        ),
-      );
+  setUp(() {
+    logs = LogRecorder();
+    db = TrackLiteDatabase.inMemory();
+  });
 
-  setUp(() => logs = []);
+  Future<TrackLiteClientImpl> open({bool debugMode = true}) => openTestClient(
+    config: TrackLiteConfig(apiKey: 'demo_key', debugMode: debugMode),
+    database: db,
+    logs: logs,
+  );
 
   test('create validates the config first', () {
     expect(
@@ -25,86 +32,157 @@ void main() {
     );
   });
 
-  test('create builds a client whose logger follows debugMode', () async {
-    final client = await TrackLiteClient.create(
-      const TrackLiteConfig(apiKey: 'demo_key', debugMode: true),
-    ) as TrackLiteClientImpl;
+  test('a first start has an anonymous id and no user', () async {
+    final client = await open();
 
-    expect(client.logger.enabled, isTrue);
+    expect(client.anonymousId, 'id-1');
+    expect(client.userId, isNull);
   });
 
-  group('in debug mode', () {
-    test('each call is logged, with the user it applies to', () {
-      final client = clientWith(debugMode: true);
+  test('track stores the event with the identity at the time', () async {
+    final client = await open();
 
-      client
-        ..track('screen_opened', properties: {'screen': 'Home'})
-        ..setUserId('user_123')
-        ..track('purchase')
-        ..clearUser();
+    client
+      ..track('screen_opened', properties: {'screen': 'Home'})
+      ..setUserId('user_123')
+      ..track('purchase');
+    await client.idle;
 
-      expect(logs, [
-        (LogLevel.debug, 'track("screen_opened", {screen: Home}) for anon'),
-        (LogLevel.debug, 'setUserId("user_123")'),
-        (LogLevel.debug, 'track("purchase", {}) for user_123'),
-        (LogLevel.debug, 'clearUser()'),
-      ]);
+    final rows = await db.eventDao.all();
+    expect(rows.map((row) => (row.name, row.userId, row.anonymousId)), [
+      ('screen_opened', null, 'id-1'),
+      ('purchase', 'user_123', 'id-1'),
+    ]);
+    expect(await db.metaDao.read(MetaKeys.userId), 'user_123');
+  });
+
+  test('clearUser: later events have no user and a new anonymous id', () async {
+    final client = await open()
+      ..setUserId('user_123')
+      ..clearUser()
+      ..track('after');
+    await client.idle;
+
+    final row = (await db.eventDao.all()).single;
+    expect(row.userId, isNull);
+    expect(row.anonymousId, 'id-2');
+    expect(client.anonymousId, 'id-2');
+  });
+
+  test('a blank or overlong user id is ignored, with a warning', () async {
+    final client = await open()
+      ..setUserId('  ')
+      ..setUserId('u' * 256);
+
+    expect(client.userId, isNull);
+    expect(logs.at(LogLevel.warning), [
+      'setUserId("  ") ignored: a user id is 1–255 characters',
+      'setUserId("${'u' * 256}") ignored: a user id is 1–255 characters',
+    ]);
+    client.setUserId('u' * 255);
+    expect(client.userId, 'u' * 255);
+  });
+
+  test('flush waits for the writes, and has nothing to send yet', () async {
+    final client = await open()
+      ..track('tap');
+    expect(client.isIdle, isFalse);
+
+    expect(await client.flush(), isA<NothingToSend>());
+
+    // Nothing still pending the moment flush returns (a read through the
+    // database alone would queue behind the write and pass anyway).
+    expect(client.isIdle, isTrue);
+    expect(await db.eventDao.all(), hasLength(1));
+  });
+
+  group('shutdown', () {
+    test('stores what was tracked, then closes the file', () async {
+      final dir = Directory.systemTemp.createTempSync('tracklite');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = File('${dir.path}/tracklite.sqlite');
+      final client =
+          await openTestClient(
+              database: TrackLiteDatabase(NativeDatabase(file)),
+              logs: logs,
+            )
+            ..track('last');
+
+      await client.shutdown();
+
+      expect(client.isClosed, isTrue);
+      expect(await client.flush(), isA<NotInitialized>());
+      final reopened = TrackLiteDatabase(NativeDatabase(file));
+      addTearDown(reopened.close);
+      expect((await reopened.eventDao.all()).map((row) => row.name), ['last']);
     });
 
-    test('calls after shutdown are ignored, with a warning each', () async {
-      final client = clientWith(debugMode: true);
+    test('later calls are ignored, with a warning each', () async {
+      final client = await open();
       await client.shutdown();
-      logs.clear();
+      logs.lines.clear();
 
       client
         ..track('late')
         ..setUserId('u')
         ..clearUser();
 
-      expect(logs, [
-        (LogLevel.warning, 'track("late") after shutdown(): ignored'),
-        (LogLevel.warning, 'setUserId after shutdown(): ignored'),
-        (LogLevel.warning, 'clearUser after shutdown(): ignored'),
+      expect(logs.at(LogLevel.warning), [
+        'track("late") after shutdown(): ignored',
+        'setUserId after shutdown(): ignored',
+        'clearUser after shutdown(): ignored',
       ]);
-      expect(client.userId, isNull);
+      await client.shutdown();
     });
   });
 
   test('without debug mode, nothing is logged', () async {
-    final client = clientWith(debugMode: false)
+    final client = await open(debugMode: false)
       ..track('a')
+      ..track('')
       ..setUserId('u');
     await client.shutdown();
     client.track('late');
 
-    expect(logs, isEmpty);
+    expect(logs.lines, isEmpty);
   });
 
-  test('flush: NothingToSend while running, NotInitialized after', () async {
-    final client = clientWith(debugMode: false);
-    expect(await client.flush(), isA<NothingToSend>());
+  test('if the database can\'t open, the session runs in memory', () async {
+    final broken = TrackLiteDatabase(
+      NativeDatabase.memory(setup: (_) => throw StateError('disk full')),
+    );
 
-    await client.shutdown();
-    await client.shutdown();
+    final client = await openTestClient(database: broken, logs: logs)
+      ..track('kept');
+    await client.idle;
 
-    expect(await client.flush(), isA<NotInitialized>());
+    expect(
+      logs.at(LogLevel.error).single,
+      'opening the event database failed: events are kept in memory for '
+      'this session: Bad state: disk full',
+    );
+    expect(await client.database.eventDao.all(), hasLength(1));
+    await client.shutdown();
   });
 
-  test('an error inside a call is logged, never thrown at the app', () {
-    final client = TrackLiteClientImpl(
-      config: const TrackLiteConfig(apiKey: 'demo_key', debugMode: true),
+  test('an error inside a call is logged, never thrown at the app', () async {
+    final client = await TrackLiteClientImpl.open(
+      const TrackLiteConfig(apiKey: 'demo_key', debugMode: true),
+      database: db,
       logger: TrackLiteLogger(
         enabled: true,
         sink: (level, message, {error, stackTrace}) {
           // The debug line fails (a broken sink); the error line must still
           // arrive and nothing escape.
           if (level == LogLevel.debug) throw StateError('sink broke');
-          logs.add((level, '$message: $error'));
+          logs.lines.add((level, '$message: $error'));
         },
       ),
     );
 
-    expect(() => client.track('boom'), returnsNormally);
-    expect(logs, [(LogLevel.error, 'track failed: Bad state: sink broke')]);
+    expect(() => client.setUserId('u'), returnsNormally);
+    expect(logs.at(LogLevel.error), [
+      'setUserId failed: Bad state: sink broke',
+    ]);
   });
 }

@@ -11,3 +11,4 @@ export 'package:tracklite_sample/core/design_system/widgets/empty_state_view.dar
 export 'package:tracklite_sample/core/design_system/widgets/loading_view.dart';
 export 'package:tracklite_sample/core/design_system/widgets/section_header.dart';
 export 'package:tracklite_sample/core/design_system/widgets/segmented_choice.dart';
+export 'package:tracklite_sample/core/design_system/widgets/stat_row.dart';

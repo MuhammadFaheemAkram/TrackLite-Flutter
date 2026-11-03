@@ -1,7 +1,7 @@
 import 'package:tracklite/src/client/tracklite_client_impl.dart';
 import 'package:tracklite/src/config/tracklite_config.dart';
+import 'package:tracklite/src/debug/tracklite_debug.dart';
 import 'package:tracklite/src/model/flush_result.dart';
-import 'package:tracklite/src/util/tracklite_logger.dart';
 
 /// The SDK as an object: what the `TrackLite` facade forwards to.
 ///
@@ -12,18 +12,15 @@ import 'package:tracklite/src/util/tracklite_logger.dart';
 /// Nothing here throws at runtime: [track], [setUserId] and [clearUser]
 /// return at once, and the async methods report their outcome.
 abstract interface class TrackLiteClient {
-  /// Starts a client with [config].
+  /// Starts a client with [config]: opens its database and identity.
   ///
   /// Throws an [ArgumentError] if [config] breaks a rule: a developer's
   /// mistake, reported in development rather than hidden.
   static Future<TrackLiteClient> create(TrackLiteConfig config) async {
     config.validate();
     // The composition root: the SDK has no DI container (it would become
-    // every host's dependency), so the parts are wired by hand, here.
-    return TrackLiteClientImpl(
-      config: config,
-      logger: TrackLiteLogger(enabled: config.debugMode),
-    );
+    // every host's dependency), so the parts are wired by hand, in `open`.
+    return TrackLiteClientImpl.open(config);
   }
 
   /// Records an event named [name] with its [properties], and returns at
@@ -38,6 +35,9 @@ abstract interface class TrackLiteClient {
 
   /// Uploads every pending event now, and says what happened.
   Future<FlushResult> flush();
+
+  /// The debug tools: what the queue holds.
+  TrackLiteDebug get debug;
 
   /// Stops the client. Later calls are ignored, and stored events wait for
   /// the next start.

@@ -1,8 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-// The only import an app has. Nothing from lib/src/ here: this file sees the
-// SDK exactly as a host does.
+// The only imports an app has (the second in its tests). Nothing from
+// lib/src/ here: this file sees the SDK exactly as a host does.
+import 'package:tracklite/testing.dart';
 import 'package:tracklite/tracklite.dart';
 
 // The public API is a promise: a name in it can't change or go without a
@@ -12,24 +13,40 @@ import 'package:tracklite/tracklite.dart';
 // and lists the exports (so adding a name is a reviewed change to this
 // test).
 void main() {
-  test('the library exports exactly these names', () {
-    final library = File('lib/tracklite.dart').readAsStringSync();
-    final shown = RegExp(r'show\s+([^;]+);')
-        .allMatches(library)
-        .expand((match) => match.group(1)!.split(','))
-        .map((name) => name.trim())
-        .toList();
+  for (final (path, names) in [
+    ('lib/tracklite.dart', _exported),
+    ('lib/testing.dart', _testing),
+  ]) {
+    test('$path exports exactly these names', () {
+      final library = File(path).readAsStringSync();
+      final shown = RegExp(r'show\s+([^;]+);')
+          .allMatches(library)
+          .expand((match) => match.group(1)!.split(','))
+          .map((name) => name.trim())
+          .toList();
 
-    expect(shown, unorderedEquals(_exported));
-    expect(shown, hasLength(_exported.length), reason: 'no name twice');
-    expect(
-      RegExp(r'^export ', multiLine: true).allMatches(library).length,
-      RegExp(r'show\s').allMatches(library).length,
-      reason: 'every export has a show list: nothing leaks by accident',
-    );
+      expect(shown, unorderedEquals(names));
+      expect(shown, hasLength(names.length), reason: 'no name twice');
+      expect(
+        RegExp(r'^export ', multiLine: true).allMatches(library).length,
+        RegExp(r'show\s').allMatches(library).length,
+        reason: 'every export has a show list: nothing leaks by accident',
+      );
+    });
+  }
+
+  test('lib/ has only these two libraries', () {
+    final libraries = Directory('lib')
+        .listSync()
+        .whereType<File>()
+        .map((file) => file.uri.pathSegments.last);
+
+    expect(libraries, unorderedEquals(['tracklite.dart', 'testing.dart']));
   });
 
   test('every name is usable from a host', () async {
+    TrackLiteTesting.useInMemoryDatabase();
+    addTearDown(TrackLiteTesting.useDeviceDatabase);
     const config = TrackLiteConfig(apiKey: 'demo_key');
     await TrackLite.initialize(config);
     addTearDown(TrackLite.shutdown);
@@ -42,6 +59,10 @@ void main() {
 
     final result = await TrackLite.flush();
     expect(describe(result), isNotEmpty);
+    final TrackLiteDebug debug = TrackLite.debug;
+    final TrackLiteStats stats = await debug.watchStats().first;
+    expect(stats.tracked, 2);
+    expect(TrackLite.earlyCallLimit, 100);
     expect(TrackLite.version, matches(RegExp(r'^\d+\.\d+\.\d+$')));
 
     final event = TrackLiteEvent(
@@ -73,6 +94,8 @@ const _exported = [
   'TrackLite',
   'TrackLiteClient',
   'TrackLiteConfig',
+  'TrackLiteDebug',
+  'TrackLiteStats',
   'TrackLiteEvent',
   'EventStatus',
   'FlushResult',
@@ -83,6 +106,8 @@ const _exported = [
   'Unauthorized',
   'NotInitialized',
 ];
+
+const _testing = ['TrackLiteTesting'];
 
 /// What a host might show for each result. Exhaustive with no default: a
 /// new case is a compile error here, as it would be in every such app.

@@ -1,0 +1,23 @@
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          # Store DateTimes as ISO-8601 text (microsecond precision) instead of
+          # whole Unix seconds (conventions §11.14). Every value is stored in
+          # UTC; the queue is ordered by `seq`, never by time.
+          store_date_time_values_as_text: true
+          # `drift_dev make-migrations`: where the database lives, where each
+          # exported schema version is kept, and where the generated
+          # migration tests go. An SDK's schema upgrades in place on its
+          # users' devices, so every version is kept.
+          databases:
+            tracklite_database: lib/src/storage/tracklite_database.dart
+          schema_dir: drift_schemas/
+          test_dir: test/drift/
+      source_gen:combining_builder:
+        options:
+          # Lint headers for drift's generated parts, so they can stay inside
+          # the analyzer's scope and still report compile errors.
+          ignore_for_file:
+            - type=lint
