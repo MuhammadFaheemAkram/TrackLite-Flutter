@@ -2,7 +2,7 @@ name: tracklite
 description: >-
   A small analytics SDK for Flutter apps: a persistent event queue, batched
   uploads, retries with backoff and background uploads, with a fake backend.
-version: 0.5.0
+version: 0.6.0
 repository: https://github.com/MuhammadFaheemAkram/TrackLite-Flutter
 issue_tracker: https://github.com/MuhammadFaheemAkram/TrackLite-Flutter/issues
 topics: [analytics, sdk, events, offline]

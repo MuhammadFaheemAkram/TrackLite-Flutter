@@ -1,0 +1,7 @@
+# `dart doc` (and CI's `dart doc --dry-run`) fails on these instead of
+# warning: a broken reference in an API doc is a bug in the docs.
+dartdoc:
+  errors:
+    - unresolved-doc-reference
+    - broken-link
+    - ambiguous-doc-reference

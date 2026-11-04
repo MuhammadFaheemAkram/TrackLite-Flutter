@@ -56,3 +56,9 @@ jobs:
       - name: Package is publishable
         working-directory: packages/tracklite
         run: flutter pub publish --dry-run
+
+      # The API docs pub.dev would build. `dartdoc_options.yaml` turns a
+      # broken reference (`[NoSuchThing]`) into an error, so it fails here.
+      - name: API docs build cleanly
+        working-directory: packages/tracklite
+        run: dart doc --dry-run

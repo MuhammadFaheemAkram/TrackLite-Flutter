@@ -1,3 +1,9 @@
+## 0.6.0
+
+- **Documentation:** the README is final (installation, the delivery guarantee, the configuration in full), and the repository's design docs explain the API, the pipeline and the retry strategy.
+- **The API docs build cleanly,** checked in CI: `dartdoc_options.yaml` makes a broken doc reference an error.
+- No API or behaviour change.
+
 ## 0.5.0
 
 - **Debug tools:**

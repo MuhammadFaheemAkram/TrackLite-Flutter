@@ -35,7 +35,7 @@ track() never throws, never blocks, and never awaits the network.
 
 ## 📋 Project Status
 
-The SDK is built in **strict, reviewable phases**. Each phase ends with:
+**Complete.** The SDK was built in **strict, reviewable phases**. Each phase ends with:
 - a building sample app (Android + iOS);
 - a clean analyzer and passing tests in both packages;
 - a summary doc;
@@ -48,7 +48,37 @@ The SDK is built in **strict, reviewable phases**. Each phase ends with:
 | 3 | The upload pipeline: the fake server, batching, statuses, at least once | ✅ Done |
 | 4 | Retries and background uploads: backoff, the network monitor, the triggers, `workmanager` | ✅ Done |
 | 5 | The debug dashboard and SDK tools: identity, the debug surface, screen tracking | ✅ Done |
-| 6 | Documentation & CI | ⏳ Next |
+| 6 | Documentation & CI: the design docs, screenshots, the open-source files, API docs in CI, a final mutation pass | ✅ Done |
+
+---
+
+## 📸 Screenshots
+
+| Home | A product, after Buy | The Dashboard | Failing, with backoff | Large text |
+|:---:|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/home.png" width="160" alt="Home: three buttons, each saying which event it sends"> | <img src="docs/screenshots/product.png" width="160" alt="Coffee beans with a Buy button and the SnackBar Purchase tracked"> | <img src="docs/screenshots/dashboard.png" width="160" alt="The Dashboard's queue: Pending 4, Sending 0, Sent 3, Failed 0, and Flush now"> | <img src="docs/screenshots/failures-dark.png" width="160" alt="Dark mode: the last upload failed, the next retry at a time with backoff after a server error"> | <img src="docs/screenshots/events-large.png" width="160" alt="Recent events at AX3 text, each status chip under its event"> |
+
+More in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md): Shop, Profile, the demo server, offline, recent events with their errors.
+
+---
+
+## 📦 Installation
+
+TrackLite isn't on pub.dev (it's a learning project with a fake backend). Add it from git, or from a local checkout:
+
+```yaml
+dependencies:
+  tracklite:
+    git:
+      url: https://github.com/MuhammadFaheemAkram/TrackLite-Flutter
+      path: packages/tracklite
+  # or: tracklite: {path: ../TrackLite-Flutter/packages/tracklite}
+```
+
+- **Call `WidgetsFlutterBinding.ensureInitialized()`** before `TrackLite.initialize`: the SDK follows the app's lifecycle.
+- **Android:** nothing to add for background uploads. A **real transport** needs `android.permission.INTERNET` in the app's **main** manifest: debug builds add it on their own, so only a release build would show it missing.
+- **iOS background uploads:** permit and register the task `dev.tracklite.upload` (`Info.plist` and `AppDelegate`; the [SDK's README](packages/tracklite/README.md#installation) has the code, and the sample app has it set up).
+- **An app with its own `workmanager`:** set `backgroundUploads: false` and call `TrackLite.runBackgroundUpload()` from your dispatcher.
 
 ---
 
@@ -117,7 +147,7 @@ Everything else is in `lib/src/`, marked `@internal`, and out of reach.
 
 ---
 
-## ✨ The Sample App (the plan)
+## ✨ The Sample App
 
 - 🏠 **Home:**
   - the screen is tracked when shown;
@@ -133,7 +163,7 @@ Everything else is in `lib/src/`, marked `@internal`, and out of reach.
   - **Demo controls:** Device offline, the server's failure rate, its latency.
 - ♿ **Accessible:** dark mode and large text on every screen; never color alone. A test tour grows with the app and checks both.
 
-All of it is built (Phase 5): the screens track through the app's own `AnalyticsService` port, tabs are tracked by the shell and pages inside them by the SDK's navigator observer, Profile signs in and out, and the Dashboard shows the SDK's live state with the demo's controls (Device offline, the server's failure rate and speed).
+The screens track through the app's own `AnalyticsService` port, tabs are tracked by the shell and pages inside them by the SDK's navigator observer, Profile signs in and out, and the Dashboard shows the SDK's live state with the demo's controls (Device offline, the server's failure rate and speed).
 
 ---
 
@@ -148,7 +178,7 @@ An SDK's dependencies become every host app's dependencies, so **the SDK and the
 |------|----------------------------|-----------------------|:-----:|
 | Toolchain | Flutter 3.47.6 · Dart 3.13, pinned with [FVM](https://fvm.app); one **pub workspace** | the same | 1 |
 | Public models | hand-written immutable classes; `meta` (`@internal`) | — | 1 |
-| The queue | [`drift`](https://pub.dev/packages/drift) + `drift_flutter` (its own `tracklite.sqlite`, schema v1 exported) | — | 2 |
+| The queue | [`drift`](https://pub.dev/packages/drift) + `drift_flutter` (its own `tracklite.sqlite`, schema v2, every version exported) | — | 2 |
 | Ids and time | `uuid` (event and anonymous ids), `clock` (an injected "now") | — | 2 |
 | Network | `connectivity_plus`, behind `NetworkMonitor` | the demo's `DemoNetworkMonitor` | 4 |
 | Background | `workmanager` (WorkManager / `BGTaskScheduler`) | the iOS host setup | 4 |
@@ -157,7 +187,7 @@ An SDK's dependencies become every host app's dependencies, so **the SDK and the
 | DI | none: a hand-written composition root | `get_it` + `injectable` | 1 |
 | State | — | `flutter_bloc` Cubits, `freezed` states | 1 |
 | Formatting | — | `intl` (prices) | 1 |
-| Lints / CI | strict analysis + `public_member_api_docs`; `pub publish --dry-run` | strict analysis; `implementation_imports` as an error | 1 |
+| Lints / CI | strict analysis + `public_member_api_docs`; `pub publish --dry-run`; `dart doc` (6) | strict analysis; `implementation_imports` as an error | 1 |
 | Testing | `flutter_test` | `flutter_test`, `bloc_test`, `mocktail` | 1 |
 
 
@@ -184,23 +214,44 @@ View ─▶ Cubit ─▶ AnalyticsService (port)
 - **The sample's Cubits never import the SDK.** They talk to `AnalyticsService`, the app's own port; one adapter implements it with TrackLite. A test checks that only the wiring imports `package:tracklite`.
 - **The SDK has one public library** with `show` lists. A test checks the exported names, and switches over `FlushResult` with no default, so a change to the API is a visible change to a test.
 
+**An event's life** (the whole pipeline is in [docs/EVENT_PIPELINE.md](docs/EVENT_PIPELINE.md)):
+
+```
+track() ─ validate ─ stamp ─▶ queue ─▶ one transaction ─▶ pending
+                                                             │ a trigger: 30 s · full batch · background · reconnect · retry due · flush()
+                                                             ▼
+                                         claim (one statement, oldest first) ─▶ sending ─▶ transport
+                                                                                              │
+             sent (kept 24 h, then pruned; counted) ◀── 2xx ──────────────────────────────────┤
+             pending, waiting 1, 2, 4… min ◀── 5xx (+1 attempt) ──────────────────────────────┤
+             pending, as before ◀── unreachable · 401 (automatic uploads pause) ──────────────┤
+             failed (kept; retryFailed() revives) ◀── 400 · a 5xx past maxRetries ────────────┘
+```
+
+**Batching, retries and background uploads, in short:**
+- **Batching:** `batchSize` (20) events per request, oldest first, one run at a time; a full batch uploads by itself.
+- **Retry:** only a server error counts an attempt, with exponential backoff per event; unreachable isn't the event's fault, a 401 pauses, a 400 is final. See [docs/RETRY_STRATEGY.md](docs/RETRY_STRATEGY.md).
+- **Background:** `workmanager` about every 15 minutes, with a network; the task reads the config `initialize` saved and shares the database with the app across isolates.
+
 ```
 TrackLite/                     # the repo root: a pub workspace (one lockfile)
 ├── packages/tracklite/        # THE SDK
 │   ├── lib/tracklite.dart     # the public API (show lists)
 │   ├── lib/testing.dart       # the second public library, for apps' tests
-│   ├── lib/src/               # everything else: the facade, client/, config/, model/, recording/, storage/, identity/, debug/, testing/, util/
+│   ├── lib/src/               # everything else (@internal): the facade, client/, config/, model/, recording/, identity/, storage/,
+│   │                          #   upload/, network/, retry/, scheduling/, connectivity/, background/, debug/, navigation/, testing/, util/
 │   ├── drift_schemas/         # every schema version, kept to migrate from
 │   ├── example/main.dart      # the snippet pub.dev shows
-│   └── README.md  CHANGELOG.md  LICENSE
+│   └── README.md  CHANGELOG.md  LICENSE  dartdoc_options.yaml
 ├── sample_app/                # THE SAMPLE (a normal app)
 │   └── lib/
 │       ├── app/  core/{design_system,navigation,common}  di/
-│       ├── domain/            # AnalyticsService (the port), Product, ProductCatalog
-│       ├── data/              # TrackLiteAnalyticsService (the adapter)
+│       ├── domain/            # the ports (AnalyticsService, AnalyticsDebug, DemoBackend, DeviceNetwork), Product, ProductCatalog
+│       ├── data/              # the adapters (TrackLiteAnalyticsService, TrackLiteAnalyticsDebug, FakeServerDemo, DemoNetworkMonitor)
 │       └── features/          # shell, home, shop, product, profile, dashboard
+├── docs/                      # the design docs, the phase summaries, screenshots/
 ├── analysis_options.yaml      # one set of rules (the SDK adds its own)
-└── .github/workflows/flutter-ci.yml
+└── .github/                   # workflows/flutter-ci.yml, the issue and PR templates
 ```
 
 **Navigation (sample):**
@@ -239,37 +290,24 @@ fvm dart run build_runner build --workspace
 ```bash
 fvm flutter analyze                                    # the whole workspace
 fvm dart format --output=none --set-exit-if-changed .
-(cd packages/tracklite && fvm flutter test)            # the SDK
-(cd sample_app && fvm flutter test)                    # the sample
+(cd packages/tracklite && fvm flutter test)            # the SDK: 211 tests
+(cd sample_app && fvm flutter test)                    # the sample: 178 tests
 (cd packages/tracklite && fvm flutter pub publish --dry-run)
 ```
 
-**384 tests** after Phase 5:
-- **The SDK (210):** everything from Phase 4, plus:
-  - **the debug tools:** recent events, the upload log, `retryFailed`;
-  - **the stats' live parts:** online, uploading, the next retry, the last upload; listened to more than once;
-  - **`combineLatest3`:** emits only once all three have a value, and each listener gets its own streams;
-  - **the navigator observer:** pushes, pops, replacements; first routes, popups and unnamed routes skipped; a host's names;
-  - the fake server's live stats.
-- **The sample (174):** everything from Phase 4, plus:
-  - the three adapters, field by field;
-  - the Dashboard's Cubit, view and words;
-  - Profile;
-  - the shell's tab tracking;
-  - **the real SDK end to end:**
-    - Flush, a failing server, Retry failed after the sixth server error;
-    - Track 100 events uploading by itself;
-    - Device offline and the reconnect;
-    - screen tracking (`shop`, `product`, `shop`);
-    - sign in and out;
-  - the accessibility tour (now with Profile signed in, and the Dashboard after failures).
+**389 tests**, all on the host (no device, network, real clock or file system):
+- **The SDK (211):** the facade and the client; the config and the public API's exact names; validation, the write queue and the identity; storage and its migration; batching, claims, the error table and the prune; the backoff and every trigger; the background task on a real database; the debug tools and the navigator observer.
+- **The sample (178):** the accessibility tour (every screen and state, light and dark, 200 % text); the real SDK end to end (Buy → Flush → Sent, a failing server and Retry failed, Track 100 events, Device offline and the reconnect, screen tracking, sign in and out); the adapters, Cubits and views; the boundary test.
+
+**Mutation checks:** every phase broke its key rules on purpose, one at a time: **236 checks over six phases**, every miss turned into a test, one equivalent documented. Per area and per phase in [docs/TESTING.md](docs/TESTING.md).
 
 CI runs on every push to `main` and every pull request:
 - the FVM-pinned Flutter;
 - generated code up to date and complete;
 - format and analyze;
 - each package's tests;
-- **`pub publish --dry-run`:** a warning fails it (exit code 65).
+- **`pub publish --dry-run`:** a warning fails it (exit code 65);
+- **`dart doc --dry-run`:** a broken doc reference fails it.
 
 ---
 
@@ -286,32 +324,47 @@ CI runs on every push to `main` and every pull request:
 | Delivery | a library module | a local Swift Package | a Dart package in a pub workspace |
 | Public API | `object TrackLite` | `enum TrackLite` (static) | `abstract final class TrackLite` + a `TrackLiteClient` interface |
 | Hiding internals | `internal` | `internal` | `lib/src/` + `show` lists + `@internal` |
-| The queue | Room | SwiftData (an actor guards it) | drift, a serial write queue (one transaction per frame) |
-| Uploads | `FakeAnalyticsApi`, batches | `FakeAnalyticsService`, batches | `AnalyticsTransport` + `FakeAnalyticsServer`; atomic claims, at least once, dedupe by id |
-| Retry | exponential backoff | the same | the same, with what counts defined (5xx yes, unreachable no, 401 pauses, 400 final) |
+| Queue | Room | SwiftData (an actor guards it) | drift, a serial write queue, atomic claims |
+| Concurrency | coroutines, a `Mutex` | actors | one isolate's event loop + the serial queue; transactions across isolates |
+| Uploads | `FakeAnalyticsApi`, batches | `FakeAnalyticsService`, batches | `AnalyticsTransport` + `FakeAnalyticsServer`; at least once, dedupe by id |
 | Background | WorkManager | `BGTaskScheduler` | `workmanager` (both), the SDK's dispatcher, `shareAcrossIsolates` |
-| Network | a fake monitor | `NWPathMonitor` + a fake | `NetworkMonitor` over `connectivity_plus`; the host can pass its own |
+| Network | `NetworkMonitor` (a fake) | `NWPathMonitor` + a fake | `NetworkMonitor` over `connectivity_plus`; the sample injects a toggle |
+| Retry | exponential backoff | the same | the same, with a rule for what counts (5xx yes, unreachable no, 401 pauses, 400 final) and a dead state |
 | Sample state | ViewModel + StateFlow | `@Observable` | Cubit, behind an `AnalyticsService` port |
-| CI | `android-ci.yml` | `ios-ci.yml` | `flutter-ci.yml` (+ `pub publish --dry-run`) |
+| Tests | JUnit, Turbine, MockK, Room, WorkManager tests | Swift Testing, in-memory container | `flutter_test`, `fake_async`, in-memory drift, a public-API test |
+| CI | `android-ci.yml` | `ios-ci.yml` | `flutter-ci.yml` (+ `pub publish --dry-run`, `dart doc`) |
 
-The full table (the queue, concurrency, background work, retries) grows with the phases.
+Where the native editions left a rule undefined (what counts as an attempt, a crash mid-upload, `flush()` and backoff, calls before `initialize`), the Flutter edition decides it once; each decision is in the phase summaries.
 
 ---
 
 ## 📚 Documentation
 
+**Design:**
+- [Architecture](docs/ARCHITECTURE.md): the layers, storage, concurrency, the sample's ports and adapters
+- [SDK Design](docs/SDK_DESIGN.md): the public API, the facade and the client, extension points, errors, dependencies, versioning, the host's setup
+- [The Event Pipeline](docs/EVENT_PIPELINE.md): `track()` to the server, every status and transition, the delivery guarantee
+- [Retry Strategy](docs/RETRY_STRATEGY.md): the error table, the backoff, the dead state, expired claims, what a real backend adds
+
+**Quality and learning:**
+- [Testing](docs/TESTING.md): tests per area, how they're built, every mutation check
+- [Learning Notes](docs/LEARNING_NOTES.md) · [Interview Notes](docs/INTERVIEW_NOTES.md) · [Screenshots](docs/SCREENSHOTS.md) · [Roadmap](docs/ROADMAP.md)
+
+**The phases:**
 - [Phase 1 — SDK Foundation](docs/PHASE_1_SUMMARY.md)
 - [Phase 2 — Event Storage Layer](docs/PHASE_2_SUMMARY.md)
 - [Phase 3 — Analytics Processing Pipeline](docs/PHASE_3_SUMMARY.md)
 - [Phase 4 — Retry + Background Uploads](docs/PHASE_4_SUMMARY.md)
 - [Phase 5 — Dashboard + SDK Tools](docs/PHASE_5_SUMMARY.md)
-- The SDK's own [README](packages/tracklite/README.md) and [CHANGELOG](packages/tracklite/CHANGELOG.md)
+- [Phase 6 — Documentation & CI](docs/PHASE_6_SUMMARY.md)
+
+**The SDK package:** its [README](packages/tracklite/README.md) and [CHANGELOG](packages/tracklite/CHANGELOG.md). **The project:** [CHANGELOG](CHANGELOG.md), [Contributing](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md), [Security](SECURITY.md).
 
 ---
 
 ## 🗺️ Roadmap
 
-The phases above. Ideas after them (a real HTTP transport, opt-out and consent, sessions, sampling) are collected in `docs/ROADMAP.md` in Phase 6.
+All six phases are done. Next steps a real SDK would take are in [docs/ROADMAP.md](docs/ROADMAP.md): a real HTTP transport (gzip, `Retry-After`, jitter), opt-out and consent, sessions and super properties, sampling, clock-skew correction, publishing to pub.dev and a web implementation.
 
 ---
 

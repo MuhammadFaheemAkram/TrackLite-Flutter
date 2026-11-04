@@ -362,6 +362,24 @@ void main() {
     expect(stats.sent, 3);
   });
 
+  test('the prune removes only sent events: old unsent ones stay', () async {
+    final uploads = uploader(
+      ScriptedTransport([const RequestRejected(400, 'refused')]),
+      batchSize: 1,
+    );
+    track(1, name: 'refused');
+    await uploads.upload(UploadTrigger.manual); // failed, kept
+    track(2);
+
+    // A day later the two are still pending: the first batch's prune must
+    // leave the second (and the failed one) alone, however old they are.
+    now = testNow.add(const Duration(hours: 25));
+    final result = await uploads.upload(UploadTrigger.manual);
+
+    expect(result, isA<Uploaded>().having((r) => r.events, 'events', 2));
+    expect(await statuses(), ['failed', 'sent', 'sent']);
+  });
+
   group('the upload log', () {
     test('one entry per run: trigger, times, outcome, counts', () async {
       final uploads = uploader(

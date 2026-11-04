@@ -9,8 +9,8 @@ A small analytics SDK for Flutter apps, built to show how an SDK is designed:
 
 It talks to a fake analytics server: this is a learning project, not a hosted service.
 
-> **Status: 0.5.0: stored, uploaded, retried, in the background; with debug tools and screen tracking.**
-> See the [repository](https://github.com/MuhammadFaheemAkram/TrackLite-Flutter) for the plan, the sample app and the design docs.
+> **Status: 0.6.0, complete:** stored, uploaded in batches, retried with backoff, uploaded in the background; with debug tools and screen tracking.
+> The [repository](https://github.com/MuhammadFaheemAkram/TrackLite-Flutter) has the sample app and the design docs: [SDK design](https://github.com/MuhammadFaheemAkram/TrackLite-Flutter/blob/main/docs/SDK_DESIGN.md), [the event pipeline](https://github.com/MuhammadFaheemAkram/TrackLite-Flutter/blob/main/docs/EVENT_PIPELINE.md), [the retry strategy](https://github.com/MuhammadFaheemAkram/TrackLite-Flutter/blob/main/docs/RETRY_STRATEGY.md).
 
 ## Usage
 
@@ -118,6 +118,12 @@ await TrackLite.initialize(
 );
 ```
 
+## The delivery guarantee: at least once
+
+An event is marked `sent` only after the server accepts it. If the app dies between the two, the batch's claim expires (5 minutes) and it is sent again. So an event is **never lost to a crash, but may arrive twice**: every event carries an `id`, and a backend should keep each id once (the fake server does, and counts the duplicates). See [the pipeline](https://github.com/MuhammadFaheemAkram/TrackLite-Flutter/blob/main/docs/EVENT_PIPELINE.md#the-delivery-guarantee-at-least-once).
+
+**What can leave the queue without being sent, always counted:** an invalid event (`rejected`), the oldest unsent ones past `maxQueueSize` (`dropped`), and events the server refused or that failed more than `maxRetries` times (`failed`, kept until `retryFailed()`).
+
 ## Screen tracking
 
 ```dart
@@ -170,8 +176,13 @@ Or depend on `TrackLiteClient` (register `TrackLite.instance`) and pass a fake.
 | `flushInterval` | 30 s | ≥ 1 s |
 | `maxRetries` | 5 | 0–20 |
 | `maxQueueSize` | 10,000 | ≥ `batchSize` |
+| `retry` | `RetryPolicy()`: 1 min, doubling, at most 1 h | `base` > 0, `maxDelay` ≥ `base` |
 | `backgroundUploads` | true | |
 | `debugMode` | false | |
+| `transport` | `FakeAnalyticsServer()` | any `AnalyticsTransport` |
+| `networkMonitor` | `ConnectivityNetworkMonitor()` | any `NetworkMonitor` |
+
+`initialize` checks every rule and throws one `ArgumentError` naming each broken one.
 
 ## License
 

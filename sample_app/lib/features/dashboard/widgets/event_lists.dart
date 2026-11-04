@@ -42,10 +42,27 @@ class _EventTile extends StatelessWidget {
       ?event.lastError,
     ].join(' · ');
     final (icon, label, color) = event.state.style(context.appColors);
+    final chip = StatusChip(icon: icon, label: label, color: color);
+    // At large text the chip would leave the name a narrow column, and an
+    // event name (one long word, `screen_opened`) would break mid-word:
+    // the chip goes under the details instead.
+    if (context.prefersStackedLayout) {
+      return ListTile(
+        title: Text(event.name),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(details),
+            const SizedBox(height: AppSpacing.xSmall),
+            chip,
+          ],
+        ),
+      );
+    }
     return ListTile(
       title: Text(event.name),
       subtitle: Text(details),
-      trailing: StatusChip(icon: icon, label: label, color: color),
+      trailing: chip,
     );
   }
 }

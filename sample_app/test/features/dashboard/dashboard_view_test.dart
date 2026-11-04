@@ -346,6 +346,53 @@ void main() {
       );
     });
 
+    testWidgets('at large text, the state goes under the event, not beside', (
+      tester,
+    ) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pump(
+        tester,
+        ready.copyWith(
+          recentEvents: [
+            RecentEvent(
+              id: 'e1',
+              name: 'screen_opened',
+              trackedAt: at,
+              state: EventState.pending,
+            ),
+          ],
+        ),
+      );
+
+      final name = tester.getRect(find.text('screen_opened'));
+      final chip = tester.getRect(find.byType(StatusChip));
+      expect(chip.top, greaterThan(name.bottom));
+      expect(chip.left, name.left);
+    });
+
+    testWidgets('at normal text, the state sits beside the event', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        ready.copyWith(
+          recentEvents: [
+            RecentEvent(
+              id: 'e1',
+              name: 'screen_opened',
+              trackedAt: at,
+              state: EventState.pending,
+            ),
+          ],
+        ),
+      );
+
+      final name = tester.getRect(find.text('screen_opened'));
+      final chip = tester.getRect(find.byType(StatusChip));
+      expect(chip.left, greaterThan(name.right));
+    });
+
     testWidgets('an upload run: why, what came of it, and the error', (
       tester,
     ) async {
